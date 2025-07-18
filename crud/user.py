@@ -1,12 +1,12 @@
-# crud.py - Pure data access: fetch, insert, update
+# crud user.py - Pure data access: fetch, insert, update
 from sqlalchemy.orm import Session
 from models import User
-from schemas import UserCreate
+from schemas.user import UserCreate
 from sqlalchemy.exc import IntegrityError
 
 def create_user(db: Session, user: UserCreate):
     existing = db.query(User).filter(
-        (User.email == user.email) | (User.strava_id == user.strava_id)
+        (User.google_email == user.google_email) | (User.strava_id == user.strava_id)
     ).first()
     if existing:
         raise ValueError("User with this email or Strava ID already exists")

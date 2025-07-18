@@ -1,4 +1,4 @@
-# schemas.py - Pydantic schemas: request/response validation and serialization
+# schemas user.py - Pydantic schemas: request/response validation and serialization
 from pydantic import BaseModel
 from uuid import UUID
 
@@ -14,6 +14,6 @@ class UserOut(BaseModel):
     google_email: str
 
     # Allow reading from ORM objects (not just dicts)
-    # Ex use case is response_model in main.py
+    # Example use case is response_model in main.py
     class Config:
         orm_mode = True
