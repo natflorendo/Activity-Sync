@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from database import SessionLocal, engine
 from models import Base
 from fastapi.middleware.cors import CORSMiddleware
-import crud, schemas
+import crud.user as user_crud, schemas.user as user_schemas
 from dotenv import load_dotenv
 import os
 import logging
@@ -46,10 +46,10 @@ def get_db():
     finally:
         db.close()
 
-@app.post("/users/", response_model=schemas.UserOut)
-def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+@app.post("/users/", response_model=user_schemas.UserOut)
+def create_user(user: user_schemas.UserCreate, db: Session = Depends(get_db)):
     try:
-        return crud.create_user(db, user)
+        return user_crud.create_user(db, user)
     except ValueError as e:
         logger.warning(f"User creation failed: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -57,10 +57,10 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
         logger.exception("Unexpected error during user creation")
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
     
-@app.get("/users/strava/{strava_id}", response_model=schemas.UserOut)
+@app.get("/users/strava/{strava_id}", response_model=user_schemas.UserOut)
 def get_user_by_strava_id(strava_id: str, db: Session = Depends(get_db)):
     try:
-        return crud.get_user_by_strava_id(db, strava_id) 
+        return user_crud.get_user_by_strava_id(db, strava_id) 
     except ValueError as e:
         logger.info(f"User not found for strava_id={strava_id}")
         raise HTTPException(status_code=404, detail=str(e))
