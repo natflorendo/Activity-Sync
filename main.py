@@ -1,44 +1,69 @@
-# main.py
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel;
+# main.py - Request handling: user interaction, errors
+from fastapi import FastAPI, HTTPException, Depends
+from sqlalchemy.orm import Session
+from database import SessionLocal, engine
+from models import Base
+from fastapi.middleware.cors import CORSMiddleware
+import crud, schemas
+from dotenv import load_dotenv
+import os
+import logging
+
+
+load_dotenv()
+
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
+ENV = os.getenv("NODE_ENV", "production").lower()
+
+# Set up logging config based on environment
+if ENV == "development":
+    logging.basicConfig(level=logging.DEBUG)
+else:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s | %(levelname)s | %(message)s"
+    )
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-items = []
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,  # Allows all origins, adjust as needed
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods, adjust as needed
+    allow_headers=["*"],  # Allows all headers, adjust as needed
+)
 
-class Item(BaseModel):
-    id: int
-    name: str
-    description: str
+# Create tables
+Base.metadata.create_all(bind=engine)
 
-@app.post("/items/")
-def create_item(item: Item):
-    items.append(item)
-    return item
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
-@app.get("/items/")
-def read_items():
-    return items
-
-@app.get("/items/{item_id}")
-def read_item(item_id: int):
-    for item in items:
-        if item.id == item_id:
-            return item
-    return HTTPException(status_code=404, detail="Item not found")
-
-@app.put("/items/{item_id}")
-def update_item(item_id: int, updated_item: Item):
-    for i, existing_item in enumerate(items):
-        if existing_item.id == item_id:
-            items[i] = updated_item
-            return updated_item
-    return HTTPException(status_code=404, detail="Item not found")
-
-@app.delete("/items/{item_id}")
-def delete_item(item_id: int):
-    for i, item in enumerate(items):
-        if item.id == item_id:
-            deleted = items.pop(i)
-            return {"deleted": deleted}
-    return HTTPException(status_code=404, detail="Item not found")
+@app.post("/users/", response_model=schemas.UserOut)
+def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    try:
+        return crud.create_user(db, user)
+    except ValueError as e:
+        logger.warning(f"User creation failed: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Unexpected error during user creation")
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
+    
+@app.get("/users/strava/{strava_id}", response_model=schemas.UserOut)
+def get_user_by_strava_id(strava_id: str, db: Session = Depends(get_db)):
+    try:
+        return crud.get_user_by_strava_id(db, strava_id) 
+    except ValueError as e:
+        logger.info(f"User not found for strava_id={strava_id}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.exception("Unexpected error while fetching user by strava_id")
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
