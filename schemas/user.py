@@ -1,19 +1,22 @@
 # schemas user.py - Pydantic schemas: request/response validation and serialization
 from pydantic import BaseModel
+from typing import Optional
 from uuid import UUID
+from schemas.google_user import GoogleUserCreate, GoogleUserOut
 
 class UserCreate(BaseModel):
-    strava_id: str
-    google_email: str
-    strava_access_token: str
-    google_access_token: str
+    name: str
+    jwt_token: Optional[str] = None
+    google_data: GoogleUserCreate
 
 class UserOut(BaseModel):
     id: UUID
-    strava_id: str
-    google_email: str
+    name: str
+    jwt_token: Optional[str] = None
+    google_data: GoogleUserOut
+
 
     # Allow reading from ORM objects (not just dicts)
     # Example use case is response_model in main.py
     class Config:
-        orm_mode = True
+        from_attributes = True
