@@ -1,16 +1,22 @@
 # main.py - Request handling: user interaction, errors
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Header
 from sqlalchemy.orm import Session
-from database import SessionLocal, engine
-from models import Base
+from database import Base, engine
+from dependencies import get_db
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
+# from services.strava import router as strava_router
+from services.google import router as google_router
 import crud.user as user_crud, schemas.user as user_schemas
+import services.google as google_services
+import utils.jwt as jwt_utils
 from dotenv import load_dotenv
 import os
 import logging
-
+import models # triggers models/__init__.py to load all models
 
 load_dotenv()
+JWT_ALGORITHM = "HS256"
 
 allowed_origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
 ENV = os.getenv("NODE_ENV", "production").lower()
@@ -30,33 +36,61 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,  # Allows all origins, adjust as needed
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods, adjust as needed
-    allow_headers=["*"],  # Allows all headers, adjust as needed
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
+# Needed for AuthLib
+app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET"))
+
+# app.include_router(strava_router, prefix="/strava")
+app.include_router(google_router, prefix="/google")
+
+# Drop all tables (needed for development to reset database)
+# Base.metadata.drop_all(bind=engine)
 
 # Create tables
 Base.metadata.create_all(bind=engine)
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
+# Create a user
 @app.post("/users/", response_model=user_schemas.UserOut)
 def create_user(user: user_schemas.UserCreate, db: Session = Depends(get_db)):
     try:
-        return user_crud.create_user(db, user)
+        return user_crud.create_or_get_user(db, user)
     except ValueError as e:
         logger.warning(f"User creation failed: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.exception("Unexpected error during user creation")
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
-    
+
+# Get current user
+@app.get("/users/me", response_model=user_schemas.UserOut)
+def get_current_user(token: str = Header(...), db: Session = Depends(get_db)):
+    try:
+        token = jwt_utils.refresh_jwt_token(token)
+        user_id = jwt_utils.decode_jwt(token)
+        user = user_crud.get_user_by_id(db, user_id)
+        
+        google_services.refresh_google_token(user, db)
+
+        return user
+    except Exception as e:
+        logger.exception("Error fetching current user")
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
+
+# Get all users
+@app.get("/users/", response_model=list[user_schemas.UserOut])
+def get_all_users(db: Session = Depends(get_db)):
+    try:
+        return user_crud.get_all_users(db)
+    except Exception as e:
+        logger.exception("Unexpected error while fetching all users")
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
+
+# WORK IN PROGRESS
 @app.get("/users/strava/{strava_id}", response_model=user_schemas.UserOut)
 def get_user_by_strava_id(strava_id: str, db: Session = Depends(get_db)):
     try:
