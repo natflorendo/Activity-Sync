@@ -2,7 +2,8 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
-from main import app, get_db  # Import your FastAPI app
+from main import app # Import your FastAPI app
+from dependencies import get_db
 from dotenv import load_dotenv
 import os
 

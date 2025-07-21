@@ -1,5 +1,5 @@
 # schemas google_user.py - Pydantic schemas for Google OAuth user data
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 
 class GoogleUserCreate(BaseModel):
@@ -16,5 +16,4 @@ class GoogleUserOut(BaseModel):
     access_token_expiry: datetime
     refresh_token_expiry: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
