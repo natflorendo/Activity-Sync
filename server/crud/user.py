@@ -5,7 +5,6 @@ from models.user import User
 from schemas.user import UserCreate
 from models.google_user import GoogleUser
 from sqlalchemy.exc import IntegrityError
-import utils.jwt as jwt_utils
 
 def create_or_get_user(db: Session, user: UserCreate):
     try:
