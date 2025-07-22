@@ -17,7 +17,7 @@ jobs:
 
     env:
       NODE_ENV: test
-      PYTHONPATH: .
+      PYTHONPATH: server
       DATABASE_URL: postgresql://user:pass@localhost:5432/activity_sync
 
 
@@ -33,7 +33,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      
+        working-directory: ./server
+
       - name: Run backend tests
         run: |
             pytest
+        working-directory: ./server

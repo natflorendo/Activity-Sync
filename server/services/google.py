@@ -2,14 +2,12 @@
 from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
-from models.user import User
 from dependencies import get_db
 from authlib.integrations.starlette_client import OAuth
 from schemas.user import UserCreate
 from schemas.google_user import GoogleUserCreate
 from crud.user import create_or_get_user
 from datetime import datetime, timezone, timedelta
-from utils.jwt import create_jwt_token
 import os
 import httpx
 
@@ -26,39 +24,6 @@ oauth.register(
     # Scope is optional here, but sets default scope
     client_kwargs={'scope': 'openid email profile https://www.googleapis.com/auth/calendar.events'}
 )
-
-def refresh_google_token(user: User, db: Session):
-    """Refresh the Google OAuth token."""
-    google_data = user.google_data
-
-    if not google_data:
-        raise ValueError("User does not have Google OAuth data")
-    
-    now = datetime.now(timezone.utc)
-    if google_data.access_token_expiry and google_data.access_token_expiry > now:
-        return google_data.access_token
-    
-    data = {
-        "client_id": os.getenv("GOOGLE_CLIENT_ID"),
-        "client_secret": os.getenv("GOOGLE_CLIENT_SECRET"),
-        "refresh_token": google_data.refresh_token,
-        "grant_type": "refresh_token"
-    }
-
-    try:
-        response = httpx.post("https://oauth2.googleapis.com/token", data=data)
-        if response.status_code != 200:
-            raise HTTPException(status_code=response.status_code, detail="Failed to refresh Google token")
-        token = response.json()
-
-        google_data.access_token = token["access_token"]
-        google_data.access_token_expiry = now + timedelta(seconds=token["expires_in"])
-
-        db.commit()
-        db.refresh(google_data)
-    except httpx.HTTPError as e:
-        raise HTTPException(status_code=500, detail=f"HTTP error while refreshing token: {str(e)}")
-
 
 # Redirect user to Google OAuth
 @router.get("/auth")

@@ -5,11 +5,10 @@ from database import Base, engine
 from dependencies import get_db
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
-# from services.strava import router as strava_router
+from services.strava import router as strava_router
 from services.google import router as google_router
+import services.user as user_service
 import crud.user as user_crud, schemas.user as user_schemas
-import services.google as google_services
-import utils.jwt as jwt_utils
 from dotenv import load_dotenv
 import os
 import logging
@@ -44,7 +43,7 @@ app.add_middleware(
 # Needed for AuthLib
 app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET"))
 
-# app.include_router(strava_router, prefix="/strava")
+app.include_router(strava_router, prefix="/strava")
 app.include_router(google_router, prefix="/google")
 
 # Drop all tables (needed for development to reset database)
@@ -70,13 +69,7 @@ def create_user(user: user_schemas.UserCreate, db: Session = Depends(get_db)):
 @app.get("/users/me", response_model=user_schemas.UserOut)
 def get_current_user(token: str = Header(...), db: Session = Depends(get_db)):
     try:
-        token = jwt_utils.refresh_jwt_token(token)
-        user_id = jwt_utils.decode_jwt(token)
-        user = user_crud.get_user_by_id(db, user_id)
-        
-        google_services.refresh_google_token(user, db)
-
-        return user
+        return user_service.get_current_user(db, token)
     except Exception as e:
         logger.exception("Error fetching current user")
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
