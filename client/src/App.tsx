@@ -1,27 +1,16 @@
 import { useState, useEffect } from 'react'
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
-import { getCookie, logout } from './App'
+import { loadAccessToken, logout, validateAccessToken } from './App'
 import './App.css'
 
 function App() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = getCookie('access_token');
-
-    if(token) {
-      localStorage.setItem('access_token', token);
-      setAccessToken(token);
-      
-      // Delete cookie
-      document.cookie = 'access_token=; Max-Age=0; path=/';
-      return;
-    }
-
-    const stored = localStorage.getItem('access_token');
-    if (stored) {
-      setAccessToken(stored);
+    const loaded = loadAccessToken(setAccessToken);
+    if(!loaded) {
+      validateAccessToken(setAccessToken);
     }
   }, []);
 
@@ -41,7 +30,7 @@ function App() {
           className='google-btn'
           disabled={accessToken !== null}
           onClick={() => {
-            window.location.href = `${import.meta.env.VITE_API_URL}/google/auth`
+            window.location.href = `${import.meta.env.VITE_API_URL}/google/login`
           }}
         >
           Sign into Google

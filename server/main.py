@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from services.strava import router as strava_router
 from services.google import router as google_router
+from services.auth import router as auth_router
 import services.user as user_service
 import crud.user as user_crud, schemas.user as user_schemas
 from dotenv import load_dotenv
@@ -43,6 +44,7 @@ app.add_middleware(
 # Needed for AuthLib
 app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET"))
 
+app.include_router(auth_router, prefix="/auth")
 app.include_router(strava_router, prefix="/strava")
 app.include_router(google_router, prefix="/google")
 
