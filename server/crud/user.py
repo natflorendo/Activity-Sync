@@ -1,10 +1,13 @@
 # crud user.py - Pure data access: fetch, insert, update
 # This contains pure database access functions only
 from sqlalchemy.orm import Session
-from models.user import User
 from schemas.user import UserCreate
+from schemas.strava_user import StravaUserCreate
+from models.user import User
 from models.google_user import GoogleUser
+from models.strava_user import StravaUser
 from sqlalchemy.exc import IntegrityError
+import os
 
 def create_or_get_user(db: Session, user: UserCreate):
     try:
@@ -22,14 +25,10 @@ def create_or_get_user(db: Session, user: UserCreate):
         else:
             # Create new User and linked GoogleUser
             # Create SQLAlchemy models, not Pydantic schemas
-            google_user = GoogleUser(
-                email=user.google_data.email,
-                sub=user.google_data.sub,
-                access_token=user.google_data.access_token,
-                access_token_expiry=user.google_data.access_token_expiry,
-                refresh_token=user.google_data.refresh_token,
-                refresh_token_expiry=user.google_data.refresh_token_expiry,
-            )
+            google_user = GoogleUser(**user.google_data.model_dump())
+            # You can't use **user.model_dump() directly here because 
+            # user.model_dump() returns a nested dictionary for google_data
+            # But the SQLAlchemy User model expects google_data to be a GoogleUser ORM instance
             db_user = User(
                 name=user.name,
                 google_data=google_user
@@ -46,6 +45,31 @@ def create_or_get_user(db: Session, user: UserCreate):
         db.rollback()
         raise Exception(f"Unexpected error while creating user: {str(e)}")
 
+def create_or_get_strava_user(db: Session, strava_user: StravaUserCreate, token_data: dict):
+    try:
+       # Create or update StravaUser row
+        db_strava_user = db.query(StravaUser).filter_by(user_id=strava_user.user_id).first()
+        if db_strava_user:
+            # Update existing tokens
+            db_strava_user.access_token = strava_user.access_token
+            db_strava_user.refresh_token = strava_user.refresh_token
+            db_strava_user.expires_at = strava_user.expires_at
+            db_strava_user.is_connected = True
+        else:
+            # create new StravaUser row
+            db_strava_user = StravaUser(**strava_user.model_dump())
+            db.add(db_strava_user)
+
+        db.commit()
+        db.refresh(db_strava_user)
+        return db_strava_user
+    except IntegrityError:
+        db.rollback()
+        raise ValueError("Possibly invalid data")
+    except Exception as e:
+        db.rollback()
+        raise Exception(f"Unexpected error while creating strava user: {str(e)}")
+
 
 def get_user_by_id(db: Session, user_id: str):
     try:
@@ -55,20 +79,13 @@ def get_user_by_id(db: Session, user_id: str):
         return user
     except Exception:
          raise Exception("Failed to fetch user by user_id")
-    
+
+
 def get_all_users(db: Session):
+    if os.getenv("NODE_ENV") != "development":
+        raise PermissionError("Fetching all users is restricted to development mode")
+    
     try:
-        return db.query(User).join(GoogleUser).all()
+        return db.query(User).all()
     except Exception as e:
         raise Exception(f"Failed to fetch all users: {e}")
-    
-
-# WORK IN PROGRESS
-def get_user_by_strava_id(db: Session, strava_id: str):
-    try:
-        user = db.query(User).filter(User.strava_id == strava_id).first()
-        if user is None:
-            raise ValueError("User not found")
-        return user
-    except Exception:
-         raise Exception("Failed to fetch user by strava_id")

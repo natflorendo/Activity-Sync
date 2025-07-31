@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 from schemas.google_user import GoogleUserCreate, GoogleUserOut
+from schemas.strava_user import StravaUserOut
 
 class UserCreate(BaseModel):
     name: str
@@ -13,6 +14,7 @@ class UserOut(BaseModel):
     id: UUID
     name: str
     google_data: GoogleUserOut
+    strava_data: Optional[StravaUserOut] = None
 
 
     # Allow reading from ORM objects (not just dicts)

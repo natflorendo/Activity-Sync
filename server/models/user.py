@@ -16,7 +16,7 @@ class User(Base):
     # One-to-one relationships
     # Lazy loads GoogleUser via SQL JOIN when querying User
     google_data = relationship("GoogleUser", back_populates="user", uselist=False, cascade="all, delete-orphan", lazy="joined")
-    strava_data = relationship("StravaUser", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    strava_data = relationship("StravaUser", back_populates="user", uselist=False, cascade="all, delete-orphan", lazy="joined")
 
     if os.getenv("NODE_ENV") == "development":
         def __repr__(self):

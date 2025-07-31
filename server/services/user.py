@@ -11,15 +11,15 @@ import httpx
 
 def get_current_user(db: Session, token: str):
     try:
-        token = jwt_utils.refresh_jwt_token(token, db)
-        user_id = jwt_utils.decode_jwt(token)
+        user_id = jwt_utils.verify_jwt(token, "access")
         user = user_crud.get_user_by_id(db, user_id)
         
         refresh_google_token(user, db)
+        refresh_strava_token(user, db)
 
         return user
     except Exception as e:
-        raise Exception(status_code=500, detail=f"Failed to fetch user: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch user: {str(e)}")
     
 
 def refresh_google_token(user: User, db: Session):
@@ -30,6 +30,7 @@ def refresh_google_token(user: User, db: Session):
         raise ValueError("User does not have Google OAuth data")
     
     now = datetime.now(timezone.utc)
+    # Token still valid
     if google_data.access_token_expiry and google_data.access_token_expiry > now:
         return google_data.access_token
     
@@ -52,4 +53,38 @@ def refresh_google_token(user: User, db: Session):
         db.commit()
         db.refresh(google_data)
     except httpx.HTTPError as e:
-        raise HTTPException(status_code=500, detail=f"HTTP error while refreshing token: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"HTTP error while refreshing google token: {str(e)}")
+    
+def refresh_strava_token(user: User, db: Session):
+    """Refresh the Strava access token"""
+    strava_data = user.strava_data
+
+    if not strava_data:
+        raise ValueError("User does not have Strava OAuth data")
+    
+    now = datetime.now(timezone.utc)
+    # Token still valid
+    if strava_data.expires_at and strava_data.expires_at > now:
+        return
+    
+    data = {
+        "client_id": os.getenv("STRAVA_CLIENT_ID"),
+        "client_secret": os.getenv("STRAVA_CLIENT_SECRET"),
+        "refresh_token": strava_data.refresh_token,
+        "grant_type": "refresh_token"
+    }
+
+    try:
+        response = httpx.post("https://www.strava.com/oauth/token", data=data)
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail="Failed to refresh Strava token")
+        token = response.json()
+
+        strava_data.access_token = token["access_token"]
+        strava_data.refresh_token = token["refresh_token"]
+        strava_data.expires_at = datetime.fromtimestamp(token["expires_at"], tz=timezone.utc)
+
+        db.commit()
+        db.refresh(strava_data)
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=500, detail=f"HTTP error while refreshing Strava token: {str(e)}")

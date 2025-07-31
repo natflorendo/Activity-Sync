@@ -1,5 +1,5 @@
 # google.py
-from fastapi import APIRouter, Request, Response, Depends, HTTPException
+from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from dependencies import get_db
@@ -11,7 +11,6 @@ from utils.cookies import set_auth_cookies
 import utils.jwt as jwt_utils
 from datetime import datetime, timezone, timedelta
 import os
-import httpx
 
 
 router = APIRouter()
@@ -73,6 +72,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
         access_token = jwt_utils.create_access_token(user.id)
         refresh_token = jwt_utils.create_refresh_token(user.id)
 
+        # Redirect Response only works if you did window.location.href
         response = RedirectResponse(url=os.getenv("FRONTEND_URL"))
         set_auth_cookies(response, access_token, refresh_token)
 
@@ -84,5 +84,5 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
             "token": token, 
             "user": user
             }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Google OAuth failed: {str(e)}")
+    except Exception:
+        return RedirectResponse(url=os.getenv("FRONTEND_URL"))
