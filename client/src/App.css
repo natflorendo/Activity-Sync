@@ -18,7 +18,7 @@
   filter: drop-shadow(0 0 2em #61dafbaa);
 }
 
-.google-btn {
+.google-btn, .strava-btn {
   transition: filter 0.5s ease-in-out;
   border: none;
 }
@@ -27,7 +27,11 @@
   filter: drop-shadow(0 0 2em #646cffaa);
 }
 
-.google-btn:disabled {
+.strava-btn:hover {
+  filter: drop-shadow(0 0 2em #ffaa64aa);
+}
+
+.google-btn:disabled, .strava-btn:disabled {
   filter: none;
   cursor: not-allowed;
 }

@@ -1,17 +1,13 @@
 import axios from "axios";
+import { getCookie } from "./cookies";
 
-export const getCookie = (name: string) => {
-    // document.cookie returns a string of all cookies available to JavaScript
-    // beginning of the string or a space: (^| ) 
-    // + the cookie name and =: access_token= 
-    // + any characters that are not ; (the cookie value): ([^;]+)
-    const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)') )
-    
-    // match[0] is the full match (e.g. "access_token=abc123")
-    // match[1] is the prefix ("" or " ")
-    // match[2] is the cookie value ("abc123")
-    return match ? decodeURIComponent(match[2]) : null;
-}
+/**
+ * Load the access token from a cookie and move it to localStorage.
+ * Used when user first logs in
+ * 
+ * @param setAccessToken - React state setter for access token
+ * @returns true if token was loaded from cookie, false otherwise
+ */
 
 export const loadAccessToken = (setAccessToken: (token: string | null) => void) => {
     const token = getCookie('access_token');
@@ -27,6 +23,13 @@ export const loadAccessToken = (setAccessToken: (token: string | null) => void) 
     return false;
 }
 
+/**
+ * Validate the current access token stored in localStorage by calling the backend.
+ * If it’s invalid or expired, try to refresh it using the refresh token cookie.
+ * Used whenever user refreshes screen
+ * 
+ * @param setAccessToken - React state setter for access token
+ */
 export const validateAccessToken = async (setAccessToken: (token: string | null ) => void) => {
     const stored = localStorage.getItem('access_token');
     if (!stored) {
@@ -52,6 +55,13 @@ export const validateAccessToken = async (setAccessToken: (token: string | null 
     }
 }
 
+/**
+ * Attempt to refresh the access token using the HttpOnly refresh token stored in a cookie.
+ * If successful, store the new token in localStorage and update state.
+ * If it fails (ex: no cookie) then assume user is logged out.
+ * 
+ * @param setAccessToken - React state setter for access token
+ */
 export const tryRefreshToken = async (setAccessToken: (token: string | null ) => void) => {
     try {
         const res = await axios.post(
@@ -62,7 +72,12 @@ export const tryRefreshToken = async (setAccessToken: (token: string | null ) =>
         const new_access_token = res.data.access_token;
         localStorage.setItem('access_token', new_access_token);
         setAccessToken(new_access_token);
-    } catch {
+    } catch (err: any) {
+        if (err.response?.status === 401) {
+            console.info("No refresh token cookie — user likely not logged in");
+        } else {
+            console.error("Unexpected error during refresh:", err);
+        }
         logout();
         setAccessToken(null);
     }
@@ -76,7 +91,7 @@ export const logout = async () => {
         await axios.post(`${import.meta.env.VITE_API_URL}/auth/logout`, {},{
             withCredentials: true, // sends HttpOnly cookies
         });
-    } catch (err){
+    } catch (err: any){
         console.error("Logout failed", err)
     }
 }
