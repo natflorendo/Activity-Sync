@@ -13,6 +13,7 @@ class UserCreate(BaseModel):
 class UserOut(BaseModel):
     id: UUID
     name: str
+    calendar_id: Optional[str] = None
     google_data: GoogleUserOut
     strava_data: Optional[StravaUserOut] = None
 

@@ -7,6 +7,7 @@ from authlib.integrations.starlette_client import OAuth
 from schemas.user import UserCreate
 from schemas.google_user import GoogleUserCreate
 from crud.user import create_or_get_user
+from utils.calendar import get_or_create_strava_calendar
 from utils.cookies import set_auth_cookies
 import utils.jwt as jwt_utils
 from datetime import datetime, timezone, timedelta
@@ -39,10 +40,12 @@ async def login_google(request: Request):
         access_type="offline", 
         # Explicitly defines scope for the consent screen
         scope=(
-            "openid email profile https://www.googleapis.com/auth/calendar.events"
+            "openid email profile "
+            "https://www.googleapis.com/auth/calendar" # Full access to calendars (list, create, edit calendars + events)
         ),
     )
 
+from utils.calendar import test_event_flow
 # Handle Google Callback
 @router.get("/callback")
 async def google_callback(request: Request, db: Session = Depends(get_db)):
@@ -76,6 +79,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
         response = RedirectResponse(url=os.getenv("FRONTEND_URL"))
         set_auth_cookies(response, access_token, refresh_token)
 
+        await test_event_flow(token["access_token"])
         return response
 
         return {

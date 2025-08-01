@@ -12,6 +12,7 @@ class User(Base):
 
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String, index=True)
+    calendar_id = Column(String)
 
     # One-to-one relationships
     # Lazy loads GoogleUser via SQL JOIN when querying User
@@ -20,5 +21,5 @@ class User(Base):
 
     if os.getenv("NODE_ENV") == "development":
         def __repr__(self):
-            return f"<User(id={self.id}, strava_id={self.strava_id}, google_email={self.google_email})>"
+            return f"<User(id={self.id}, name={self.name})>"
         

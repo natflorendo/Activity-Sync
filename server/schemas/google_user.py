@@ -15,7 +15,9 @@ class GoogleUserOut(BaseModel):
     id: UUID
     email: str
     sub: str
+    access_token: str
     access_token_expiry: datetime
+    refresh_token: str
     refresh_token_expiry: datetime
 
     model_config = ConfigDict(from_attributes=True)

@@ -60,7 +60,8 @@ def refresh_strava_token(user: User, db: Session):
     strava_data = user.strava_data
 
     if not strava_data:
-        raise ValueError("User does not have Strava OAuth data")
+        # User does not have Strava OAuth data
+        return
     
     now = datetime.now(timezone.utc)
     # Token still valid
