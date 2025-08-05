@@ -8,7 +8,8 @@ import httpx
 from dependencies import get_db
 from models.strava_user import StravaUser
 from crud.user import create_or_get_strava_user
-from services.user import get_current_user
+from services.user import get_current_user, refresh_strava_token
+from utils.strava import sync_strava_data
 from schemas.strava_user import StravaUserCreate
 from datetime import datetime
 
@@ -81,10 +82,14 @@ async def strava_callback(
             expires_at=datetime.fromtimestamp(token_data["expires_at"])
         )
 
-        create_or_get_strava_user(db, strava_user, token_data)
+        strava_user = create_or_get_strava_user(db, strava_user, token_data)
+
+        await sync_strava_data(strava_user, strava_user.access_token)
+        strava_user.last_synced_at = datetime.now()
+        db.commit()
+        db.refresh(strava_user)
 
         response = RedirectResponse(url=os.getenv("FRONTEND_URL"))
-
         return response
         
         return {
@@ -124,6 +129,7 @@ def logout_strava(
     Disconnects the user's Strava account by setting is_connected = False.
     This also sends a request to Strava to revoke the access token
     """
+    
     user = get_current_user(db, token)
     strava_data = db.query(StravaUser).filter_by(user_id=user.id).first()
     
@@ -131,7 +137,8 @@ def logout_strava(
         try:
             res = httpx.post(
                 "https://www.strava.com/oauth/deauthorize",
-                headers={"Authorization": f"Bearer {strava_data.access_token}"}
+                data={"access_token": strava_data.access_token},
+                headers={"Content-Type": "application/x-www-form-urlencoded"}
             )
             if res.status_code != 200:
                 print("Warning: Failed to revoke token on Strava")
@@ -139,8 +146,9 @@ def logout_strava(
             print(f"Error while revoking Strava token: {e}")
 
         strava_data.is_connected = False
+
         db.commit()
         db.refresh(strava_data)
-        return {"messgage": "Strava disconnected"}
+        return {"message": "Strava disconnected"}
 
     return {"message": "Strava not connected"}

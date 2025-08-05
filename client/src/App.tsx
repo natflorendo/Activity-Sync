@@ -73,7 +73,7 @@ function App() {
           <>
             <button
               onClick={() => {
-                disconnectStrava(accessToken, setIsStravaConnected);
+                disconnectStrava(accessToken, setAccessToken, setIsStravaConnected);
               }}
             >
               Disconnect
@@ -92,4 +92,4 @@ function App() {
   )
 }
 
-export default App
+export default App;

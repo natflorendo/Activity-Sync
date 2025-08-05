@@ -35,8 +35,8 @@ async def get_or_create_strava_calendar(access_token: str):
             calendar_id = create_response.json()["id"]
 
             # Google does not allow setting the calendar color during creation.
-            # Using PATCH to partially update a resource
-            # 4 is Tangerine
+            # Using PATCH to partially update a resource (change calendar color)
+            # 4 is Tangerine (didn't see documentation so just did guess and check)
             await client.patch(
                 f"https://www.googleapis.com/calendar/v3/users/me/calendarList/{calendar_id}",
                 headers={"Authorization": f"Bearer {access_token}"},
@@ -152,5 +152,4 @@ async def test_event_flow(access_token: str):
         event_data_json=event_payload
     )
 
-    print("✅ Event Created Successfully:")
-    print(created_event)
+    print("✅ Event Created Successfully:", created_event)

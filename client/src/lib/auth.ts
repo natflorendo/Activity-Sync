@@ -72,6 +72,8 @@ export const tryRefreshToken = async (setAccessToken: (token: string | null ) =>
         const new_access_token = res.data.access_token;
         localStorage.setItem('access_token', new_access_token);
         setAccessToken(new_access_token);
+       
+        return new_access_token
     } catch (err: any) {
         if (err.response?.status === 401) {
             console.info("No refresh token cookie — user likely not logged in");
