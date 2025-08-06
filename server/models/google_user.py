@@ -1,4 +1,8 @@
-# strava_user.py 
+"""
+models/google_user.py
+
+SQLAlchemy ORM models: table structure and relationships
+"""
 from sqlalchemy import Column, String, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
 import uuid

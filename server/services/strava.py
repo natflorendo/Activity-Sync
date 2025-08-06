@@ -1,154 +1,176 @@
-# strava.py
-from fastapi import APIRouter, Request, Depends
-from fastapi.security import OAuth2PasswordBearer
+"""
+services/strava.py
+
+Business logic for syncing Strava activities with Google Calendar.
+
+Coordinates workflows that combine database access, 
+Strava API calls, and Google Calendar API calls.
+"""
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
-from fastapi.responses import RedirectResponse, JSONResponse
-import os
-import httpx
-from dependencies import get_db
+from schemas.calendar import CalendarEventCreate
 from models.strava_user import StravaUser
-from crud.user import create_or_get_strava_user
-from services.user import get_current_user, refresh_strava_token
-from utils.strava import sync_strava_data
-from schemas.strava_user import StravaUserCreate
-from datetime import datetime
+from utils.time import format_duration
+import integrations.google_calendar_api as calendar_utils
+from integrations.strava_api import get_strava_activities, get_strava_activity
+from datetime import datetime, timedelta
+import httpx
 
-
-router = APIRouter()
-
-# Extracts the access token
-# oauth2_scheme is for when the token is structured like Authorization: Bearer ...
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
-@router.get("/login")
-def login_strava(token: str = Depends(oauth2_scheme)):
+async def save_activities(strava_user: StravaUser, activities: list[dict]):
     """
-    Generates the Strava OAuth login URL with the user's JWT passed as state.
-    The frontend should redirect the user to this URL.
-    """
-    url=(
-        "https://www.strava.com/oauth/authorize"
-        f"?client_id={os.getenv('STRAVA_CLIENT_ID')}"
-        "&response_type=code"
-        f"&redirect_uri={os.getenv('BACKEND_URL')}/strava/callback"
-        "&scope=read,activity:read_all"
-        "&approval_prompt=force"
-        f"&state={token}"
-    )
-    return {"url": url}
+    Saves Strava activities to the user's Google Calendar.
 
-async def use_strava_code(code: str):
-    """
-    Exchanges the Strava authorization code for an access and refresh token.
-    """
-    async with httpx.AsyncClient() as client:
-        res = await client.post("https://www.strava.com/oauth/token", data={
-            "client_id": os.getenv("STRAVA_CLIENT_ID"),
-            "client_secret": os.getenv("STRAVA_CLIENT_SECRET"),
-            "code": code,
-            "grant_type": "authorization_code"
-        })
-    
-    return res.json()
+    Converts Strava activity data into Google Calendar event format, 
+    checks for duplicates, and either updates existing events 
+    or creates new ones for activities that haven't been synced yet.
 
-@router.get("/callback")
-async def strava_callback(
-    request: Request,
-    db: Session = Depends(get_db)
-): 
-    """
-    Strava redirects here after user login.
-    We extract the code and original JWT (state), verify the user,
-    then store their Strava access/refresh tokens in our DB.
-    """
-    code = request.query_params.get("code")
-    state_token = request.query_params.get("state")
+     Args:
+        strava_user (StravaUser): The StravaUser object containing OAuth tokens.
+        activities (list[dict]): List of activity data from Strava.
 
-    if not code:
-        return JSONResponse(content={"error": "No code provided"}, status_code=400)
-    
+    Returns:
+        None
+    """
+    if not activities:
+        return
+
     try:
-        current_user = get_current_user(db, state_token)
-        token_data = await use_strava_code(code)
-        if not current_user:
-            return JSONResponse(content={"error": "User not found"}, status_code=404)
+        user = strava_user.user
+        google_data = user.google_data
+
+        for activity in activities:
+            # Convert meters to miles
+            distance = round(activity["distance"] / 1609.34, 2)
+            # Convert ISO 8601 timestamp into a timezone-aware Python datetime object
+            start_time = datetime.fromisoformat(activity["start_date"].replace("Z", "+00:00"))
+            duration = format_duration(activity["elapsed_time"])
+            
+            event = CalendarEventCreate(
+                summary=f"({distance} mi) {activity['name']}",
+                description=(
+                    f"{distance} miles\n"
+                    f"Duration: {duration}\n\n"
+                    f"View on Strava: https://www.strava.com/activities/{activity['id']}"    
+                ),
+                start_time=start_time,
+                end_time=start_time + timedelta(seconds=activity["elapsed_time"]),
+                time_zone=activity["timezone"]
+            )
+            event_data_json = calendar_utils.build_event_data(event)
+            
+            # Tag event data with Strava activity id for updating
+            event_data_json.setdefault("extendedProperties", {}).setdefault("private", {})[
+                "strava_activity_id"
+            ] = activity["id"]
+
+            existing_event_id = await calendar_utils.find_event_by_strava_id(
+                google_data.access_token, user.calendar_id, activity["id"]
+            )
+            if existing_event_id:
+                # Update existing event
+                print(f"⚠️⚠️⚠️ {existing_event_id} ⚠️⚠️⚠️")
+                await calendar_utils.update_google_calendar_event(
+                    google_data.access_token, user.calendar_id, existing_event_id, event_data_json
+                )
+                print(f"🔁 Event updated for activity: {event.summary} {event.start_time}")
+            else:
+                # Create new event
+                await calendar_utils.create_google_calendar_event(
+                    google_data.access_token, user.calendar_id, event_data_json
+                )
+                print(f"✅ Event created for activity: {event.summary} {event.start_time}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"⚠️ Failed to save activity {activity.get('id')}: {str(e)}")
+
+
+async def sync_strava_data(strava_user: StravaUser, db: Session):
+    """
+    Syncs Strava activities to the user's Google Calendar
+
+    Fetches activities from Strava after the last synced timestamp,
+    converts them into Google Calendar events, and updates last_synced_at.
+
+    Args:
+        strava_user (StravaUser): The StravaUser object containing OAuth tokens and last_synced_at timestamp.
+        db (Session): The database session.
+
+    Returns:
+        None
+    """
+    user = strava_user.user
+    google_data = user.google_data
+
+    try:
+        # Strava's `after` parameter must be a UNIX timestamp (int), not a datetime.
+        # Avoids timezone/formatting issues and makes filtering faster.
+        after = int(strava_user.last_synced_at.timestamp()) if strava_user.last_synced_at else None
+        activities = await get_strava_activities(strava_user.access_token, after)
         
-        strava_user = StravaUserCreate(
-            user_id=current_user.id,
-            athlete_id=str(token_data["athlete"]["id"]),
-            athlete_name=token_data["athlete"]["firstname"] + " " + token_data["athlete"]["lastname"],
-            access_token=token_data["access_token"],
-            refresh_token=token_data["refresh_token"],
-            expires_at=datetime.fromtimestamp(token_data["expires_at"])
-        )
+        user.calendar_id = await calendar_utils.get_or_create_strava_calendar(google_data.access_token)
 
-        strava_user = create_or_get_strava_user(db, strava_user, token_data)
-
-        await sync_strava_data(strava_user, strava_user.access_token)
+        await save_activities(strava_user, activities)
         strava_user.last_synced_at = datetime.now()
         db.commit()
         db.refresh(strava_user)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to sync Strava data: {str(e)}")
 
-        response = RedirectResponse(url=os.getenv("FRONTEND_URL"))
-        return response
-        
-        return {
-            "message": "Login successful",
-            "token_data": token_data,
-            "code": code,
-            "token": state_token
-        }
-    except Exception:
-        return RedirectResponse(url=os.getenv("FRONTEND_URL"))
-    
-@router.get("/status")
-def strava_status(
-    token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)
-):
+async def update_strava_activity(strava_user: StravaUser, activity_id: int, db: Session):
     """
-    Checks if the user is connected to Strava.
+    Fetches a single Strava activity by ID and syncs updated details to user's Google Calendar
+    
+    Args:
+        strava_user (StravaUser): The StravaUser object containing OAuth tokens.
+        activity_id (int): The ID of the activity to update.
+        db (Session): The database session.
+
+    Returns:
+        None
+
+    Notes:
+        Does NOT modify last_synced_at, as updates do not affect the sync window.
     """
     try:
-        user = get_current_user(db, token)
-        strava_data = db.query(StravaUser).filter_by(user_id=user.id).first()
+        activity = await get_strava_activity(strava_user, activity_id)
 
-        # Return True only if a Strava record exists AND the user is connected
-        return {"connected": bool(strava_data and strava_data.is_connected)}
+        await save_activities(strava_user, [activity])
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return JSONResponse(status_code=500, content={"error": f"Unexpected error: {str(e)}"})
+        raise HTTPException(status_code=500, detail=f"Failed to update Strava activity {activity_id}: {str(e)}")
+    
+async def delete_strava_activity(strava_user: StravaUser, activity_id: int):
+    """
+    Remove the Google Calendar event linked to the given Strava activity.
+    
+    Args:
+        strava_user (StravaUser): The StravaUser object containing OAuth tokens.
+        activity_id (int): The ID of the Strava activity to remove.
 
-@router.post("/disconnect")
-def logout_strava(
-    token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)
-):
+    Returns:
+        dict: Status indicating whether the event was deleted or not found.
+
+    Notes:
+        Does NOT modify last_synced_at, as deletions do not affect the sync window.
     """
-    Disconnects the user's Strava account by setting is_connected = False.
-    This also sends a request to Strava to revoke the access token
-    """
-    
-    user = get_current_user(db, token)
-    strava_data = db.query(StravaUser).filter_by(user_id=user.id).first()
-    
-    if strava_data:
-        try:
-            res = httpx.post(
-                "https://www.strava.com/oauth/deauthorize",
-                data={"access_token": strava_data.access_token},
-                headers={"Content-Type": "application/x-www-form-urlencoded"}
+    user = strava_user.user
+    google_data = user.google_data
+
+    try:
+        existing_event_id = await calendar_utils.find_event_by_strava_id(
+            google_data.access_token, user.calendar_id, activity_id
+        )
+
+        if not existing_event_id:
+            # Nothing to delete (treated as success)
+            return {"status": "no event"}
+        
+        # Delete the event
+        async with httpx.AsyncClient() as client:
+            response = await client.delete(
+                f"https://www.googleapis.com/calendar/v3/calendars/{user.calendar_id}/events/{existing_event_id}",
+                headers={"Authorization": f"Bearer {google_data.access_token}"}
             )
-            if res.status_code != 200:
-                print("Warning: Failed to revoke token on Strava")
-        except Exception as e:
-            print(f"Error while revoking Strava token: {e}")
+            response.raise_for_status()
 
-        strava_data.is_connected = False
-
-        db.commit()
-        db.refresh(strava_data)
-        return {"message": "Strava disconnected"}
-
-    return {"message": "Strava not connected"}
+        print(f"‼️ Event deleted: {existing_event_id}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error while deleting activity {activity_id}: {str(e)}")

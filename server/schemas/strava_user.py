@@ -1,3 +1,10 @@
+"""
+schemas/strava_user.py
+
+Pydantic schemas for Strava user data.
+
+Defines request/response models and contains no business logic or database code.
+"""
 from pydantic import BaseModel, ConfigDict
 from uuid import UUID
 from typing import Optional

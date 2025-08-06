@@ -1,7 +1,24 @@
+"""
+utils/cookies.py
+
+Helper functions for setting and deleting authentication cookies.
+
+Contains small, reusable, stateless functions with no business logic or database access.
+"""
 from fastapi import Response
 
 def set_auth_cookies(response: Response, access_token: str, refresh_token: str):
-    """Sets Authentiation cookies on HTTP response"""
+    """
+    Sets Authentiation cookies on HTTP response
+
+    Args:
+        response (Response): The FastAPI response object to attach cookies to.
+        access_token (str): The short-lived JWT access token for API access.
+        refresh_token (str): The long-lived JWT refresh token for session persistence.
+
+    Returns:
+        None
+    """
     # HTTP-only refresh token cookie for session persistence.
     response.set_cookie(
             key="refresh_token",
@@ -24,7 +41,15 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str):
     )
 
 def delete_auth_cookies(response: Response):
-    """Deletes Authentication cookies"""
+    """
+    Deletes Authentication cookies. Intended to be called on logout or session expiration.
+
+    Args:
+        response (Response): The FastAPI response object to clear cookies from.
+
+    Returns:
+        None
+    """
     # Just in case to prevent stale cookies from being reused or lingering in the browser.
     response.delete_cookie(
         key="access_token",

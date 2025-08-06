@@ -1,4 +1,10 @@
-# schemas user.py - Pydantic schemas: request/response validation and serialization
+"""
+schemas/user.py
+
+Pydantic schemas for User data.
+
+Defines request/response models and contains no business logic or database code.
+"""
 from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 from typing import Optional

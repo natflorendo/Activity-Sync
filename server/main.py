@@ -5,9 +5,9 @@ from database import Base, engine
 from dependencies import get_db
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
-from services.strava import router as strava_router
-from services.google import router as google_router
-from services.auth import router as auth_router
+from routes.strava import router as strava_router
+from routes.google import router as google_router
+from routes.auth import router as auth_router
 import services.user as user_service
 import crud.user as user_crud, schemas.user as user_schemas
 from dotenv import load_dotenv
@@ -45,8 +45,9 @@ app.add_middleware(
 app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET"))
 
 app.include_router(auth_router, prefix="/auth")
-app.include_router(strava_router, prefix="/strava")
 app.include_router(google_router, prefix="/google")
+app.include_router(strava_router, prefix="/strava")
+app.include_router(strava_router, prefix="/strava/webhook")
 
 # Drop all tables (needed for development to reset database)
 # Base.metadata.drop_all(bind=engine)
@@ -83,16 +84,4 @@ def get_all_users(db: Session = Depends(get_db)):
         return user_crud.get_all_users(db)
     except Exception as e:
         logger.exception("Unexpected error while fetching all users")
-        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
-
-# WORK IN PROGRESS
-@app.get("/users/strava/{strava_id}", response_model=user_schemas.UserOut)
-def get_user_by_strava_id(strava_id: str, db: Session = Depends(get_db)):
-    try:
-        return user_crud.get_user_by_strava_id(db, strava_id) 
-    except ValueError as e:
-        logger.info(f"User not found for strava_id={strava_id}")
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        logger.exception("Unexpected error while fetching user by strava_id")
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")

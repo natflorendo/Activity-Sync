@@ -1,3 +1,10 @@
+"""
+schemas/calendar.py
+
+Pydantic schemas for Google Calendar event data.
+
+Defines request/response models and contains no business logic or database code.
+"""
 from pydantic import BaseModel
 from datetime import datetime
 

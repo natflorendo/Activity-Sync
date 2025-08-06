@@ -1,6 +1,14 @@
-# service user.py - user-related logic and integration
-# This contains workflows that involve both database access and external services
-# Created to prevent circular import when it came with google and jwt integration
+"""
+services/user.py
+
+
+Business logic for user-related workflows, including token validation
+and refreshing Google and Strava OAuth tokens.
+
+Coordinates database access, JWT verification, and external API calls.
+
+Created to prevent circular import when it came with google and jwt integration
+"""
 from fastapi import HTTPException
 from models.user import User
 from sqlalchemy.orm import Session
@@ -10,6 +18,16 @@ import os
 import httpx
 
 def get_current_user(db: Session, token: str):
+    """
+    Retrieve the currently authenticated user and refresh their OAuth tokens.
+
+    Args:
+        db (Session): The database session.
+        token (str): The JWT access token for authentication.
+
+    Returns:
+        User: The authenticated user object.
+    """
     try:
         user_id = jwt_utils.verify_jwt(token, "access")
         user = user_crud.get_user_by_id(db, user_id)
@@ -23,7 +41,16 @@ def get_current_user(db: Session, token: str):
     
 
 def refresh_google_token(user: User, db: Session):
-    """Refresh the Google OAuth token."""
+    """
+    Refresh the Google OAuth access token.
+    
+    Args:
+        user (User): The user whose Google token should be refreshed.
+        db (Session): The database session.
+
+    Returns:
+        str: The valid Google access token.
+    """
     google_data = user.google_data
 
     if not google_data:
@@ -56,7 +83,16 @@ def refresh_google_token(user: User, db: Session):
         raise HTTPException(status_code=500, detail=f"HTTP error while refreshing google token: {str(e)}")
     
 def refresh_strava_token(user: User, db: Session):
-    """Refresh the Strava access token"""
+    """
+    Refresh the Strava OAuth access token
+
+    Args:
+        user (User): The user whose Strava token should be refreshed.
+        db (Session): The database session.
+
+    Returns:
+        str | None: The valid Strava access token, or None if the user has no Strava data.
+    """
     strava_data = user.strava_data
 
     if not strava_data:

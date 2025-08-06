@@ -1,13 +1,28 @@
-# utils calendar.py
+"""
+integrations/google_calendar_api.py
+
+Functions for interacting with the Google Calendar API.
+
+Contains direct HTTP calls to an external service and no application business logic.
+"""
+from fastapi import HTTPException
 from schemas.calendar import CalendarEventCreate
 from datetime import timezone
 import httpx
 
 async def get_or_create_strava_calendar(access_token: str):
-    """"Return the calendar ID for a 'Strava' calendar. If it doesn't exist, create it."""
+    """"
+    Return the calendar ID for a 'Strava' calendar. If it doesn't exist, create it.
+
+    Args:
+        access_token (str): The Google OAuth access token for the authenticated user.
+
+    Returns:
+        str: The ID of the "Strava" calendar.
+    """
     try:
         async with httpx.AsyncClient() as client:
-            # List calendars
+            # List all calendars
             response = await client.get(
                 "https://www.googleapis.com/calendar/v3/users/me/calendarList",
                 headers={"Authorization": f"Bearer {access_token}"}
@@ -17,7 +32,7 @@ async def get_or_create_strava_calendar(access_token: str):
             # Extracts the items list with empty list as default
             calendars = response.json().get("items", [])
 
-            # Look for an exsiting calendar named strava
+            # Look for an existing calendar named strava
             for calendar in calendars:
                 if calendar.get("summary", "").lower() == "strava":
                     return calendar["id"]
@@ -45,11 +60,19 @@ async def get_or_create_strava_calendar(access_token: str):
 
             return calendar_id
     except Exception as e:
-        print(f"Unexpected error in get_or_create_strava_calendar: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Unexpected error in get_or_create_strava_calendar: {str(e)}")
 
     
 def build_event_data( event_data: CalendarEventCreate ):
-    """Convert raw input into Google Calendar event JSON format"""
+    """
+    Convert raw input (CalendarEventCreate object) into Google Calendar event JSON format
+
+    Args:
+        event_data (CalendarEventCreate): The event data to convert.
+
+    Returns:
+        dict: A dictionary formatted for the Google Calendar API's event creation/update endpoints.
+    """
     return {
         "summary": event_data.summary,
         "description": event_data.description,
@@ -71,7 +94,17 @@ async def event_exists(
     calendar_id: str,
     event_data: CalendarEventCreate
 ) -> bool:
-    """Check if an event with the same name and start time already exists"""
+    """
+    Check if an event with the same name and start time already exists
+    
+    Args:
+        access_token (str): The Google OAuth access token for the authenticated user.
+        calendar_id (str): The Google Calendar ID.
+        event_data (CalendarEventCreate): The event data to match.
+
+    Returns:
+        bool: True if an identical event exists, False otherwise.
+    """
     try:
         async with httpx.AsyncClient() as client:
             params = {
@@ -99,11 +132,20 @@ async def event_exists(
                     return True
         return False
     except Exception as e:
-        print(f"Error checking existing events: {str(e)}")
-        return False
+        raise HTTPException(status_code=500, detail=f"Error checking existing events: {str(e)}")
     
 async def create_google_calendar_event(access_token: str, calendar_id: str, event_data_json: dict):
-    """Create an event on a given Google Calendar"""
+    """
+    Create an event on a given Google Calendar
+    
+    Args:
+        access_token (str): The Google OAuth access token for the authenticated user.
+        calendar_id (str): The Google Calendar ID where the event will be created.
+        event_data_json (dict): The event data in Google Calendar API JSON format.
+
+    Returns:
+        dict: The created event resource from Google Calendar.
+    """
     try:
         
         async with httpx.AsyncClient() as client:
@@ -118,38 +160,69 @@ async def create_google_calendar_event(access_token: str, calendar_id: str, even
             response.raise_for_status()
             return response.json()
     except Exception as e:
-        print(f"Unexpected error in create_google_calendar_event: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Unexpected error in create_google_calendar_event: {str(e)}")
 
-#DELETE ME
-from datetime import datetime, timedelta
-def get_dummy_data():
-    now = datetime.now()
-    return CalendarEventCreate(
-        summary="Test Run",
-        description="30-minute jog to test calendar sync",
-        start_time=now + timedelta(hours=1),
-        end_time=now + timedelta(hours=1, minutes=30),
-        time_zone="America/Chicago"
-    )
+async def update_google_calendar_event(
+    access_token: str,
+    calendar_id: str,
+    event_id: str,
+    event_data_json: dict
+):
+    """
+    Update an existing Google Calendar event
+    
+    Args:
+        access_token (str): The Google OAuth access token for the authenticated user.
+        calendar_id (str): The Google Calendar ID containing the event.
+        event_id (str): The ID of the event to update.
+        event_data_json (dict): The updated event data in Google Calendar API JSON format.
 
-# DELETE ME
-async def test_event_flow(access_token: str):
-    calendar_id = await get_or_create_strava_calendar(access_token)
+    Returns:
+        dict: The updated event resource from Google Calendar.
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.patch(
+                f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events/{event_id}",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/json"
+                },
+                json=event_data_json
+            )
+            response.raise_for_status()
+            return response.json()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error in update_google_calendar_event: {str(e)}")
 
-    dummy_event = get_dummy_data()
+async def find_event_by_strava_id(access_token: str, calendar_id: str, activity_id: int):
+    """
+    Return the Google event id that has the given Strava activity_id in private extendedProperties.
+    
+    Args:
+        access_token (str): The Google OAuth access token for the authenticated user.
+        calendar_id (str): The Google Calendar ID to search in.
+        activity_id (int): The Strava activity ID to match in private extended properties.
 
-    # Check for duplicates first
-    if await event_exists(access_token, calendar_id, dummy_event):
-        print("⚠️⚠️⚠️ Event already exists, skipping creation. ⚠️⚠️⚠️")
-        return
+    Returns:
+        str | None: The Google Calendar event ID if found, otherwise None.
 
-    event_payload = build_event_data(dummy_event)
-
-    # Create event if no duplicate
-    created_event = await create_google_calendar_event(
-        access_token=access_token,
-        calendar_id=calendar_id,
-        event_data_json=event_payload
-    )
-
-    print("✅ Event Created Successfully:", created_event)
+    Notes:
+        - Used in services/strava.py
+    """
+    
+    params = {
+        "maxResults": 1,
+        # Expands recurring events into individual instances.
+        "singleEvents": True,
+        "privateExtendedProperty": f"strava_activity_id={activity_id}"
+    }
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params=params,
+        )
+        response.raise_for_status()
+        events = response.json().get("items", [])
+        return events[0]["id"] if events else None

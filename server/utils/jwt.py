@@ -1,5 +1,11 @@
+"""
+utils/jwt.py
+
+Helper functions for creating, verifying, and refreshing JWT tokens.
+
+Contains small, reusable, stateless functions with no business logic or database access.
+"""
 from fastapi import HTTPException
-from sqlalchemy.orm import Session
 from jose import jwt, JWTError, ExpiredSignatureError
 from datetime import datetime, timezone, timedelta
 import os
@@ -9,7 +15,15 @@ JWT_ALGORITHM = "HS256"
 
 # Create a JWT access token for the user
 def create_access_token(user_id: str):
-    """Create a JWT access token for the user."""
+    """
+    Create a JWT access token for the user.
+    
+    Args:
+        user_id (str): The unique ID of the user.
+
+    Returns:
+        str: The encoded JWT access token.
+    """
     now = datetime.now(timezone.utc)
     payload = {
         "sub": str(user_id),
@@ -21,7 +35,15 @@ def create_access_token(user_id: str):
 
 # Create a JWT refresh token for the user
 def create_refresh_token(user_id: str):
-    """Create a JWT refresh token for the user."""
+    """
+    Create a JWT refresh token for the user.
+
+    Args:
+        user_id (str): The unique ID of the user.
+
+    Returns:
+        str: The encoded JWT refresh token.
+    """
     now = datetime.now(timezone.utc)
     payload = {
         "sub": str(user_id),
@@ -33,7 +55,16 @@ def create_refresh_token(user_id: str):
 
 # Decode a JWT token to get the user ID and verify type
 def verify_jwt(token: str, expected_type: str):
-    """Decode a JWT token and return the user ID and verify type."""
+    """
+    Decode a JWT token and return the user ID and verify type.
+    
+    Args:
+        token (str): The JWT token to verify.
+        expected_type (str): The expected token type ("access" or "refresh").
+
+    Returns:
+        str: The user ID (`sub`) embedded in the token.
+    """
     try:
         payload = jwt.decode(token, os.getenv("JWT_SECRET"), algorithms=[JWT_ALGORITHM])
         if payload.get("type") != expected_type:
@@ -49,7 +80,15 @@ def verify_jwt(token: str, expected_type: str):
     
 # Refresh a JWT access token if it has expired
 def refresh_jwt_token(token: str):
-    """Return the original token if valid, otherwise issue a refreshed one."""
+    """
+    Return the original token if valid, otherwise issue a refreshed one.
+    
+    Args:
+        token (str): The JWT refresh token.
+
+    Returns:
+        str: A new JWT access token.
+    """
     try:
         # Suceeds if the token is valid and not expired
         user_id = verify_jwt(token, expected_type="refresh")

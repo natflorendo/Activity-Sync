@@ -1,4 +1,8 @@
-# model user.py - SQLAlchemy ORM models: table structure and relationships
+"""
+models/user.py
+
+SQLAlchemy ORM models: table structure and relationships
+"""
 import uuid
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy import Column, String, DateTime

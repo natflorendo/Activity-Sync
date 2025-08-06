@@ -1,4 +1,11 @@
-# google.py
+"""
+routes/google.py
+
+API routes for Google OAuth login and callback handling.
+
+Defines HTTP endpoints, manages request/response flow, and 
+delegates database and token logic to `crud/` and `utils/`.
+"""
 from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
@@ -26,9 +33,17 @@ oauth.register(
     client_kwargs={'scope': 'openid email profile https://www.googleapis.com/auth/calendar.events'}
 )
 
-# Redirect user to Google OAuth
 @router.get("/login")
 async def login_google(request: Request):
+    """
+    Redirect user to Google OAuth login and consent screen
+
+    Args:
+        request (Request): The incoming request object.
+
+    Returns:
+        RedirectResponse: A redirect to Google's OAuth authorization page.
+    """
     redirect_uri = f"{os.getenv('BACKEND_URL')}/google/callback"
     return await oauth.google.authorize_redirect(
         request,
@@ -44,9 +59,24 @@ async def login_google(request: Request):
         ),
     )
 
-# Handle Google Callback
 @router.get("/callback")
 async def google_callback(request: Request, db: Session = Depends(get_db)):
+    """
+    Handle Google's OAuth callback after user login.
+
+    Args:
+        request (Request): The incoming request containing OAuth parameters.
+        db (Session): The database session.
+
+    Returns:
+        RedirectResponse: Redirects the user to the frontend after login.
+    
+    Notes:
+        - Google redirects here after user login.
+        - We exchange the authorization code for tokens using Authlib, 
+        stores or updates the user in the database with Google account info,
+        issues JWT access/refresh tokens, and sets authentication cookies in the response.
+    """
     try:
         token = await oauth.google.authorize_access_token(request)
         if not token:
