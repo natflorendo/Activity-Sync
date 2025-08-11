@@ -13,7 +13,7 @@ from models.strava_user import StravaUser
 from utils.time import format_duration
 import integrations.google_calendar_api as calendar_utils
 from integrations.strava_api import get_strava_activities, get_strava_activity
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import httpx
 
 async def save_activities(strava_user: StravaUser, activities: list[dict]):
@@ -29,10 +29,13 @@ async def save_activities(strava_user: StravaUser, activities: list[dict]):
         activities (list[dict]): List of activity data from Strava.
 
     Returns:
-        None
+        datetime | None: UTC datetime of the latest activity's end time if any activities were processed,
+                         otherwise None.
     """
+    latest_end_utc: datetime | None = strava_user.last_synced_at
+
     if not activities:
-        return
+        return latest_end_utc
 
     try:
         user = strava_user.user
@@ -43,7 +46,10 @@ async def save_activities(strava_user: StravaUser, activities: list[dict]):
             distance = round(activity["distance"] / 1609.34, 2)
             # Convert ISO 8601 timestamp into a timezone-aware Python datetime object
             start_time = datetime.fromisoformat(activity["start_date"].replace("Z", "+00:00"))
+            end_time=start_time + timedelta(seconds=activity["elapsed_time"])
             duration = format_duration(activity["elapsed_time"])
+            if latest_end_utc is None or end_time.astimezone(timezone.utc) > latest_end_utc:
+                latest_end_utc = end_time.astimezone(timezone.utc)
             
             event = CalendarEventCreate(
                 summary=f"({distance} mi) {activity['name']}",
@@ -53,7 +59,7 @@ async def save_activities(strava_user: StravaUser, activities: list[dict]):
                     f"View on Strava: https://www.strava.com/activities/{activity['id']}"    
                 ),
                 start_time=start_time,
-                end_time=start_time + timedelta(seconds=activity["elapsed_time"]),
+                end_time=end_time,
                 time_zone=activity["timezone"]
             )
             event_data_json = calendar_utils.build_event_data(event)
@@ -79,6 +85,8 @@ async def save_activities(strava_user: StravaUser, activities: list[dict]):
                     google_data.access_token, user.calendar_id, event_data_json
                 )
                 print(f"✅ Event created for activity: {event.summary} {event.start_time}")
+        
+        return latest_end_utc if latest_end_utc else None
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"⚠️ Failed to save activity {activity.get('id')}: {str(e)}")
 
@@ -105,17 +113,18 @@ async def sync_strava_data(strava_user: StravaUser, db: Session):
         # Avoids timezone/formatting issues and makes filtering faster.
         after = int(strava_user.last_synced_at.timestamp()) if strava_user.last_synced_at else None
         activities = await get_strava_activities(strava_user.access_token, after)
-        
+
         user.calendar_id = await calendar_utils.get_or_create_strava_calendar(google_data.access_token)
 
-        await save_activities(strava_user, activities)
-        strava_user.last_synced_at = datetime.now()
+        latest_time_utc = await save_activities(strava_user, activities)
+        strava_user.last_synced_at = latest_time_utc
         db.commit()
         db.refresh(strava_user)
     except Exception as e:
+        db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to sync Strava data: {str(e)}")
 
-async def update_strava_activity(strava_user: StravaUser, activity_id: int, db: Session):
+async def update_strava_activity(strava_user: StravaUser, activity_id: int):
     """
     Fetches a single Strava activity by ID and syncs updated details to user's Google Calendar
     
@@ -137,13 +146,14 @@ async def update_strava_activity(strava_user: StravaUser, activity_id: int, db: 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to update Strava activity {activity_id}: {str(e)}")
     
-async def delete_strava_activity(strava_user: StravaUser, activity_id: int):
+async def delete_strava_activity(strava_user: StravaUser, activity_id: int, db: Session):
     """
     Remove the Google Calendar event linked to the given Strava activity.
     
     Args:
         strava_user (StravaUser): The StravaUser object containing OAuth tokens.
         activity_id (int): The ID of the Strava activity to remove.
+        db (Session): The database session.
 
     Returns:
         dict: Status indicating whether the event was deleted or not found.
@@ -155,6 +165,11 @@ async def delete_strava_activity(strava_user: StravaUser, activity_id: int):
     google_data = user.google_data
 
     try:
+        # Reset last synced at to the start of the day
+        strava_user.last_synced_at = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        db.commit()
+        db.refresh(strava_user)
+        
         existing_event_id = await calendar_utils.find_event_by_strava_id(
             google_data.access_token, user.calendar_id, activity_id
         )
@@ -171,6 +186,7 @@ async def delete_strava_activity(strava_user: StravaUser, activity_id: int):
             )
             response.raise_for_status()
 
-        print(f"‼️ Event deleted: {existing_event_id}")
+        print(f"‼️ Event deleted: {existing_event_id}, {activity_id}")
     except Exception as e:
+        db.rollback()
         raise HTTPException(status_code=500, detail=f"Unexpected error while deleting activity {activity_id}: {str(e)}")

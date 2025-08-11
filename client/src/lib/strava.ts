@@ -35,6 +35,7 @@ export const connectStrava = async (accessToken: string | null) => {
  */
 export const checkStravaConnected = async (
     accessToken: string | null,
+    setAccessToken: (token: string | null ) => void,
     setIsStravaConnected: (connected: boolean) => void
 ) => {
     if (!accessToken) {
@@ -51,7 +52,7 @@ export const checkStravaConnected = async (
         setIsStravaConnected(res.data.connected);
     } catch(err: any) {
         console.error("Failed to check Strava status:", err.response?.data);
-        setIsStravaConnected(false);
+        await disconnectStrava(accessToken, setAccessToken, setIsStravaConnected);
     }
 }
 
@@ -64,7 +65,7 @@ const tryDisconnect = async (
     accessToken: string | null, 
     setAccessToken: (token: string | null ) => void
 ) => {
-    tryRefreshToken(setAccessToken);
+    await tryRefreshToken(setAccessToken);
     return axios.post(`${import.meta.env.VITE_API_URL}/strava/disconnect`, 
         {}, 
         {
@@ -90,20 +91,21 @@ export const disconnectStrava = async (
         await tryDisconnect(accessToken, setAccessToken);
         setIsStravaConnected(false);
     } catch (err: any) {
-        if(err.response?.status === 401) {
-            console.warn("Access token expired, attempting to refresh...");
+        // Might delete because its repetitive of tryRefreshToken
+        // if(err.response?.status === 401) {
+        //     console.warn("Access token expired, attempting to refresh...");
             
-            try {
-                const res = await axios.post(`${import.meta.env.VITE_API_URL}/auth/refresh`, {}, {
-                    withCredentials: true,
-                });
+        //     try {
+        //         const res = await axios.post(`${import.meta.env.VITE_API_URL}/auth/refresh`, {}, {
+        //             withCredentials: true,
+        //         });
             
-                await tryDisconnect(res.data.access_token, setAccessToken);
-                setIsStravaConnected(false);
-            } catch (refreshErr: any) {
-                console.error("Token refresh failed:", refreshErr.response?.data);
-            }
-        }
+        //         await tryDisconnect(res.data.access_token, setAccessToken);
+        //         setIsStravaConnected(false);
+        //     } catch (refreshErr: any) {
+        //         console.error("Token refresh failed:", refreshErr.response?.data);
+        //     }
+        // }
 
         console.warn("Strava logout failed:", err.response?.data);
     }

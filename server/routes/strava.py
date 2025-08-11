@@ -115,7 +115,7 @@ async def strava_callback(
 
         strava_user = create_or_get_strava_user(db, strava_user, token_data)
 
-        await sync_strava_data(strava_user, strava_user.access_token, db)
+        await sync_strava_data(strava_user, db)
 
         response = RedirectResponse(url=os.getenv("FRONTEND_URL"))
         return response
@@ -126,7 +126,8 @@ async def strava_callback(
             "code": code,
             "token": state_token
         }
-    except Exception:
+    except Exception as e:
+        print(str(e))
         return RedirectResponse(url=os.getenv("FRONTEND_URL"))
     
 @router.get("/status")

@@ -33,7 +33,10 @@ def get_current_user(db: Session, token: str):
         user = user_crud.get_user_by_id(db, user_id)
         
         refresh_google_token(user, db)
-        refresh_strava_token(user, db)
+
+        strava_data = user.strava_data
+        if strava_data and strava_data.is_connected:
+            refresh_strava_token(user, db)
 
         return user
     except Exception as e:
@@ -80,6 +83,7 @@ def refresh_google_token(user: User, db: Session):
         db.commit()
         db.refresh(google_data)
     except httpx.HTTPError as e:
+        db.rollback()
         raise HTTPException(status_code=500, detail=f"HTTP error while refreshing google token: {str(e)}")
     
 def refresh_strava_token(user: User, db: Session):
@@ -124,4 +128,5 @@ def refresh_strava_token(user: User, db: Session):
         db.commit()
         db.refresh(strava_data)
     except httpx.HTTPError as e:
+        db.rollback()
         raise HTTPException(status_code=500, detail=f"HTTP error while refreshing Strava token: {str(e)}")

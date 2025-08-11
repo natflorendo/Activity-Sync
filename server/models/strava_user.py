@@ -19,7 +19,7 @@ class StravaUser(Base):
     access_token = Column(String)
     refresh_token = Column(String)
     expires_at = Column(DateTime(timezone=True))
-    last_synced_at = Column(DateTime, default=None)
+    last_synced_at = Column(DateTime(timezone=True), default=None)
     is_connected = Column(Boolean, default=True)
 
     # One-to-One relationship with User

@@ -6,6 +6,7 @@ from dependencies import get_db
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from routes.strava import router as strava_router
+from routes.strava_webhook import router as strava_webhook_router
 from routes.google import router as google_router
 from routes.auth import router as auth_router
 import services.user as user_service
@@ -47,7 +48,7 @@ app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET"))
 app.include_router(auth_router, prefix="/auth")
 app.include_router(google_router, prefix="/google")
 app.include_router(strava_router, prefix="/strava")
-app.include_router(strava_router, prefix="/strava/webhook")
+app.include_router(strava_webhook_router, prefix="/strava/webhook")
 
 # Drop all tables (needed for development to reset database)
 # Base.metadata.drop_all(bind=engine)

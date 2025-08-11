@@ -21,7 +21,7 @@ function App() {
   // Whenever accessToken is updated (after login or refresh), check if Strava is connected
   useEffect(() => {
     if(accessToken) {
-      checkStravaConnected(accessToken, setIsStravaConnected)
+      checkStravaConnected(accessToken, setAccessToken, setIsStravaConnected);
     }
   }, [accessToken]);
 
