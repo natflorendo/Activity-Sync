@@ -16,6 +16,13 @@ import os
 
 router = APIRouter()
 
+# NOTE:
+# This verification route is currently unused because Strava's GET 
+# verification is handled by the Cloudflare Worker. The Worker exists purely to avoid Render's
+# 15-minute idle sleep delay, ensuring Strava always gets an instant 200 OK.
+# I want to keep this route in case the app ever migrates away from the Worker in the future.
+# The strava webhook subscription uses the Worker () as the callback URL
+# (instead of https://activitysync-api.onrender.com/strava/webhook)
 @router.get("/")
 async def verify_webhook(request: Request):
     """
@@ -30,7 +37,9 @@ async def verify_webhook(request: Request):
     if hub_mode == "subscribe" and hub_challenge and verify_token == os.getenv("STRAVA_VERIFY_TOKEN"):
         return {"hub.challenge": hub_challenge}
     
-    # Return empty object if not because the response should indicate status code 200. 
+    # Return empty object if not because the response should indicate status code 200.
+    # If it returned error it may consider the webhook endpoint unavailable or misconfigured
+    # and might have to manually trigger another subscription request 
     return {}
 
 @router.post("/")

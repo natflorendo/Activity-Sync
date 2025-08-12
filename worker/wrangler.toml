@@ -1,0 +1,6 @@
+name = "activitysync-proxy"
+main = "src/worker.ts"
+compatibility_date = "2025-08-12"
+
+[vars]
+BACKEND_URL = "https://activitysync-api.onrender.com"
