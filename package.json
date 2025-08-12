@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "dev": "concurrently \"npm run dev --prefix client\" \"cd server && source venv/bin/activate && uvicorn main:app --reload\""
+    "dev": "concurrently \"npm run dev --prefix client\" \"cd server && source .venv/bin/activate && uvicorn main:app --reload\""
   },
   "devDependencies": {
     "concurrently": "^9.2.0"

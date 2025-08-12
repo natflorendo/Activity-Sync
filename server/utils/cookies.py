@@ -6,6 +6,11 @@ Helper functions for setting and deleting authentication cookies.
 Contains small, reusable, stateless functions with no business logic or database access.
 """
 from fastapi import Response
+import os
+
+IS_DEV = os.getenv("NODE_ENV").lower() == "development"
+COOKIE_SAMESITE = "lax" if IS_DEV else "none"
+COOKIE_SECURE = False if IS_DEV else True
 
 def set_auth_cookies(response: Response, access_token: str, refresh_token: str):
     """
@@ -24,9 +29,10 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str):
             key="refresh_token",
             value=refresh_token,
             httponly=True,
-            secure=False,  # Only over HTTPS (False in dev [http])
-            samesite="Lax",  # Allows redirect-based auth
-            max_age=60 * 60 * 24 * 30 # 30 days
+            secure=COOKIE_SECURE,  # Only over HTTPS (False in dev [http])
+            samesite=COOKIE_SAMESITE,  # Allows redirect-based auth
+            max_age=60 * 60 * 24 * 30, # 30 days
+            path="/"
     )
 
     # JS-readable access token cookie for short-term API access
@@ -34,8 +40,8 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str):
         key="access_token",
         value=access_token,
         httponly=False, # JavaScript can read this
-        secure=False, # Set False for development (http)
-        samesite="Lax",
+        secure=COOKIE_SECURE, # Set False for development (http)
+        samesite=COOKIE_SAMESITE,
         max_age=60 * 5,  # 5 minutes
         path="/"
     )
