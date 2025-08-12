@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import { loadAccessToken, logout, validateAccessToken} from './lib/auth';
-import { connectStrava, checkStravaConnected, disconnectStrava } from './lib/strava'
+import { loadAccessToken, validateAccessToken} from './lib/auth';
+import { checkStravaConnected } from './lib/strava';
+import GoogleButton from './components/GoogleButton/GoogleButton';
+import StravaButton from './components/StravaButton/StravaButton';
 import './App.css'
 
 function App() {
@@ -26,69 +26,25 @@ function App() {
   }, [accessToken]);
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+    <div className="main">
+      <img className="app-logo" src="/ActivitySync.png"/>
+      <h1>Activity Sync</h1>
+      <span>Automacially sync your Strava activities to Google Calendar!</span>
+      <div className="services">
+          <GoogleButton 
+            accessToken={accessToken}
+            setAccessToken={setAccessToken}
+            setIsStravaConnected={setIsStravaConnected}
+          />
+
+          <StravaButton
+            accessToken={accessToken}
+            isStravaConnected={isStravaConnected}
+            setAccessToken={setAccessToken}
+            setIsStravaConnected={setIsStravaConnected}
+          />
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button 
-          className='google-btn'
-          disabled={accessToken !== null}
-          onClick={() => {
-            window.location.href = `${import.meta.env.VITE_API_URL}/google/login`
-          }}
-        >
-          Sign into Google
-        </button>
-        {accessToken && 
-          <>
-            <button
-              onClick={() => {
-                logout();
-                setAccessToken(null);
-                setIsStravaConnected(false);
-              }}
-            >
-              Logout
-            </button>
-            <p style={{ marginTop: '1rem' }}>✅ Logged in!</p>
-          </>
-          }
-          <button 
-          className='strava-btn'
-          disabled={accessToken === null || isStravaConnected === true}
-          onClick={() => {
-            connectStrava(accessToken);
-          }}
-        >
-          Connect Strava
-        </button>
-        {isStravaConnected && 
-          <>
-            <button
-              onClick={() => {
-                disconnectStrava(accessToken, setAccessToken, setIsStravaConnected);
-              }}
-            >
-              Disconnect
-            </button>
-            <p style={{ marginTop: '1rem' }}>✅ Strava Connected!</p>
-          </>
-          }
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+    </div>
   )
 }
 

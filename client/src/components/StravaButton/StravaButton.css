@@ -1,0 +1,13 @@
+.strava-btn {
+  transition: filter 0.5s ease-in-out;
+  border: none;
+}
+
+.strava-btn:hover {
+  filter: drop-shadow(0 0 2em #ffaa64aa);
+}
+
+.strava-btn:disabled {
+  filter: none;
+  cursor: not-allowed;
+}

@@ -1,0 +1,16 @@
+.google {
+    margin-bottom: 1rem;
+}
+.google-btn {
+  transition: filter 0.5s ease-in-out;
+  border: none;
+}
+
+.google-btn:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+
+.google-btn:disabled {
+  filter: none;
+  cursor: not-allowed;
+}
