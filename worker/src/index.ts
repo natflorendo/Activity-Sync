@@ -2,6 +2,7 @@
 export interface Env {
   BACKEND_URL: string;
   STRAVA_VERIFY_TOKEN: string;
+  CONTINUE_TOKEN: string;
 }
 
 export default {
@@ -9,6 +10,7 @@ export default {
     // Parse the URL to get path and query parameters
     const parsed_url = new URL(request.url);
     const is_webhook = parsed_url.pathname === "/strava/webhook";
+	const is_continue = parsed_url.pathname === "/__continue";
 
     // GET: verification
     if (request.method === "GET" && is_webhook) {
@@ -28,75 +30,131 @@ export default {
     }
 
     // POST: events - return 200 immediately, forward once server is ready
+	// do ~28s of work then pass down if needed
     if (request.method === "POST" && is_webhook) {
       const body_text = await request.text();
 
-      const forward_event = async () => {
-        const totalDeadlineMs = 65_000;          // hard cap ~65s
-		const baseDelayMs = 750;                 // 0.75s
-		const maxDelayMs = 5_000;                // cap any single wait at 5s
-		const perRequestTimeoutMs = 5_000;       // don't hang forever on a single fetch
-		const start = Date.now();
-
-		let attempt = 0;
-        while(Date.now() - start < totalDeadlineMs) {
-			attempt++;
-			let t: any
-			try {
-				// Gives the abilty to cancel the fetch
-				const controller = new AbortController();
-				// Schedules a timeout that will abort the request if it exceeds perRequestTimeoutMs
-				t = setTimeout(() => controller.abort(), perRequestTimeoutMs);
-
-				console.log(`[worker] attempt ${attempt} → POST ${env.BACKEND_URL}/strava/webhook`);
-				const res = await fetch(`${env.BACKEND_URL}/strava/webhook`, {
-						method: "POST",
-						headers: {
-						"content-type": "application/json",
-						},
-						body: body_text,
-						//Passes controller.signal so the fetch can be aborted by the timeout 
-						signal: controller.signal,
-				});
-				console.log(`[worker] attempt ${attempt} status`, res.status);
-
-				// Stop retrying (2xx success)
-				if (res.ok) { return; }
-				// Stop if there are client errors
-				if (400 <= res.status && res.status < 500) { return;}
-			} catch (err: any) {
-				// Network/other error - retry
-				console.log(`[worker] attempt ${attempt} error`, err?.name || '', err?.message || '');
-			} finally {
-				if (t) { clearTimeout(t); }
-			}
-
-			/**
-			 * Exponential backoff with small random jitter to avoid thundering herd
-			 *  If many webhook events fail at once, the Worker might retry all of them at the same delay 
-			 * (e.g., exactly 0.75 seconds later, then 1.5s, then 3s…).
-			 * That means the backend would get a sudden “stampede” of retries at those exact moments, 
-			 * potentially crashing it. Jitter (a random delay) helps avoid this
-			 */
-			// Computes exponential backoff: base × 2^(attempt-1), but capped at maxDelayMs
-			const exp = Math.min(maxDelayMs, baseDelayMs * 2 ** (attempt - 1))
-			const jitter = Math.random() * 300; // a random extra wait time between 0 and 0.3 seconds.
-			// Final sleep duration is the backoff+jitter, but never more than the remaining time in the overall budget.
-			const remaining = Math.max(0, totalDeadlineMs - (Date.now() - start))
-			const delay = Math.min(exp + jitter, remaining)
-			console.log(`[worker] sleeping ${delay}ms (remaining ${remaining}ms)`);
-			await new Promise((r) => setTimeout(r, delay));
-		}
-      };
-
       // Keep running until this task finishes, even if the response has already been sent.
-      ctx.waitUntil(forward_event());
+	  // Free plan has a 30s time limit
+      ctx.waitUntil((async () => {
+        const done = await forward_event(env.BACKEND_URL, body_text, 28_000); // fit < 30s cap
+		console.log("done", done)
+        if (!done) {
+		  console.log("in done")
+          // Start a NEW request (new background window)
+          await fetch(new URL("/__continue", request.url), {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-continue": env.CONTINUE_TOKEN ?? "",
+              "x-depth": "1",
+            },
+            body: body_text,
+          });
+        }
+      })());
 
       // Give a fast resonse to Strava
 	  console.log("[worker] returning queued to client");
       return Response.json({ "status": "queued" });
     }
 
+	// POST: internal continuation endpoint
+	if (request.method === "POST" && is_continue) {
+		console.log("in continue")
+      // Simple guard to prevent random hits
+      if (env.CONTINUE_TOKEN && request.headers.get("x-continue") !== env.CONTINUE_TOKEN) {
+        return new Response("forbidden", { status: 403 });
+      }
+
+      const depth = Number(request.headers.get("x-depth") ?? "0");
+      if (depth > 2) return Response.json({ status: "stop" }); // safety max ~3 windows total
+
+      const body_text = await request.text();
+
+      ctx.waitUntil((async () => {
+        const done = await forward_event(env.BACKEND_URL, body_text, 24_000);
+        if (!done) {
+          // Optionally chain again (each time creates a new window)
+          await fetch(new URL("/__continue", request.url), {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-continue": env.CONTINUE_TOKEN ?? "",
+              "x-depth": String(depth + 1),
+            },
+            body: body_text,
+          });
+        }
+      })());
+
+      return Response.json({ status: "continuing", depth });
+    }
+
     return Response.json({ "Not found": null }, { status: 404 });
   },
+};
+
+/* ----- Helpers ----- */
+const forward_event = async (backend_url: string, body_text: string, totalDeadlineMs: number) => {
+	try { JSON.parse(body_text); console.log("here") } 
+	catch { console.error("Webhook body is not valid JSON:", body_text); }
+	// totalDeadlineMs hard cap ~XXs
+	const baseDelayMs = 750;                 // 0.75s
+	const maxDelayMs = 5_000;                // cap any single wait at 5s
+	const perRequestTimeoutMs = 5_000;       // don't hang forever on a single fetch
+	const start = Date.now();
+
+	let attempt = 0;
+	while(Date.now() - start < totalDeadlineMs) {
+		attempt++;
+		let t: any
+		try {
+			// Gives the abilty to cancel the fetch
+			const controller = new AbortController();
+			// Schedules a timeout that will abort the request if it exceeds perRequestTimeoutMs
+			t = setTimeout(() => controller.abort(), perRequestTimeoutMs);
+
+			console.log(`[worker] attempt ${attempt} → POST ${backend_url}/strava/webhook`);
+			const res = await fetch(`${backend_url}/strava/webhook`, {
+					method: "POST",
+					headers: {
+					"content-type": "application/json",
+					},
+					body: body_text,
+					//Passes controller.signal so the fetch can be aborted by the timeout 
+					signal: controller.signal,
+			});
+			const res_text = await res.text();
+			console.log(`[worker] attempt ${attempt} status`, res.status, res_text);
+
+			// Stop retrying (2xx success)
+			if (res.ok) { return true; }
+			// Stop if there are client errors
+			if (400 <= res.status && res.status < 500) { return true; }
+		} catch (err: any) {
+			// Network/other error - retry
+			console.log(`[worker] attempt ${attempt} error`, err?.name || '', err?.message || '');
+		} finally {
+			if (t) { clearTimeout(t); }
+		}
+
+		/**
+		 * Exponential backoff with small random jitter to avoid thundering herd
+		 *  If many webhook events fail at once, the Worker might retry all of them at the same delay 
+		 * (e.g., exactly 0.75 seconds later, then 1.5s, then 3s…).
+		 * That means the backend would get a sudden “stampede” of retries at those exact moments, 
+		 * potentially crashing it. Jitter (a random delay) helps avoid this
+		 */
+		// Computes exponential backoff: base × 2^(attempt-1), but capped at maxDelayMs
+		const exp = Math.min(maxDelayMs, baseDelayMs * 2 ** (attempt - 1))
+		const jitter = Math.random() * 300; // a random extra wait time between 0 and 0.3 seconds.
+		// Final sleep duration is the backoff+jitter, but never more than the remaining time in the overall budget.
+		const remaining = Math.max(0, totalDeadlineMs - (Date.now() - start))
+		const delay = Math.min(exp + jitter, remaining)
+		console.log(`[worker] sleeping ${delay}ms (remaining ${remaining}ms)`);
+		await new Promise((r) => setTimeout(r, delay));
+	}
+
+	return false;
 };

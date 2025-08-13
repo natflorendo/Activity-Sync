@@ -10,7 +10,7 @@ from fastapi import APIRouter, Request, Depends, HTTPException
 from sqlalchemy.orm import Session
 from models.strava_user import StravaUser
 from dependencies import get_db
-from services.user import refresh_strava_token
+from services.user import refresh_strava_token, refresh_google_token
 from services.strava import sync_strava_data, update_strava_activity, delete_strava_activity
 import os
 
@@ -70,6 +70,7 @@ async def recieve_strava_event(payload: dict, db: Session = Depends(get_db)):
             raise HTTPException(status_code=400, detail="User is not connected to Google Calendar")
 
         refresh_strava_token(user, db)
+        refresh_google_token(user, db)
 
         if aspect_type == "create":
             await sync_strava_data(strava_user, db)
