@@ -35,22 +35,25 @@ export default {
       const body_text = await request.text();
 
       // Keep running until this task finishes, even if the response has already been sent.
-	  // Free plan has a 30s time limit
+	  // Free plan has a 30s time limit so we work for ~24s, then "baton pass" to /__continue
+	  // to start a new execution window. This avoids hitting the 1042 error when fetching
+	  // another Worker on the same zone (compatibility flag `global_fetch_strictly_public` is enabled),
+	  // allowing us to chain multiple windows for longer processing.
       ctx.waitUntil((async () => {
         const done = await forward_event(env.BACKEND_URL, body_text, 24_000); // fit < 30s cap
-		console.log("done", done)
         if (!done) {
-		  console.log("in done")
-          // Start a NEW request (new background window)
-          await fetch(new URL("/__continue", request.url), {
-            method: "POST",
-            headers: {
-              "content-type": "application/json",
-              "x-continue": env.CONTINUE_TOKEN ?? "",
-              "x-depth": "1",
-            },
-            body: body_text,
-          });
+			// Start a NEW request (new background window)
+			const res = await fetch(new URL("/__continue", request.url), {
+			method: "POST",
+			headers: {
+				"content-type": "application/json",
+				"x-continue": env.CONTINUE_TOKEN ?? "",
+				"x-depth": "1",
+			},
+			body: body_text,
+			});
+			const res_text = await res.text();
+	  		console.log("[worker] baton resonse:", res.status, res_text)
         }
       })());
 
@@ -61,34 +64,33 @@ export default {
 
 	// POST: internal continuation endpoint
 	if (request.method === "POST" && is_continue) {
-		console.log("in continue")
-      // Simple guard to prevent random hits
-      if (env.CONTINUE_TOKEN && request.headers.get("x-continue") !== env.CONTINUE_TOKEN) {
-        return new Response("forbidden", { status: 403 });
-      }
+		// Simple guard to prevent random hits
+		if (env.CONTINUE_TOKEN && request.headers.get("x-continue") !== env.CONTINUE_TOKEN) {
+			return new Response("forbidden", { status: 403 });
+		}
 
-      const depth = Number(request.headers.get("x-depth") ?? "0");
-      if (depth > 2) return Response.json({ status: "stop" }); // safety max ~3 windows total
+		const depth = Number(request.headers.get("x-depth") ?? "0");
+		if (depth > 2) return Response.json({ status: "stop" }); // safety max ~3 windows total
 
-      const body_text = await request.text();
+		const body_text = await request.text();
 
-      ctx.waitUntil((async () => {
-        const done = await forward_event(env.BACKEND_URL, body_text, 24_000);
-        if (!done) {
-          // Optionally chain again (each time creates a new window)
-          await fetch(new URL("/__continue", request.url), {
-            method: "POST",
-            headers: {
-              "content-type": "application/json",
-              "x-continue": env.CONTINUE_TOKEN ?? "",
-              "x-depth": String(depth + 1),
-            },
-            body: body_text,
-          });
-        }
-      })());
+		ctx.waitUntil((async () => {
+			const done = await forward_event(env.BACKEND_URL, body_text, 20_000);
+			if (!done) {
+			// Optionally chain again (each time creates a new window)
+			await fetch(new URL("/__continue", request.url), {
+				method: "POST",
+				headers: {
+				"content-type": "application/json",
+				"x-continue": env.CONTINUE_TOKEN ?? "",
+				"x-depth": String(depth + 1),
+				},
+				body: body_text,
+			});
+			}
+		})());
 
-      return Response.json({ status: "continuing", depth });
+      	return Response.json({ status: "continuing", depth });
     }
 
     return Response.json({ "Not found": null }, { status: 404 });
@@ -97,8 +99,6 @@ export default {
 
 /* ----- Helpers ----- */
 const forward_event = async (backend_url: string, body_text: string, totalDeadlineMs: number) => {
-	try { JSON.parse(body_text); console.log("here") } 
-	catch { console.error("Webhook body is not valid JSON:", body_text); }
 	// totalDeadlineMs hard cap ~XXs
 	const baseDelayMs = 750;                 // 0.75s
 	const maxDelayMs = 5_000;                // cap any single wait at 5s
@@ -131,7 +131,7 @@ const forward_event = async (backend_url: string, body_text: string, totalDeadli
 			// Stop retrying (2xx success)
 			if (res.ok) { return true; }
 			// Stop if there are client errors
-			if (400 <= res.status && res.status < 500) { return true; }
+			if (400 <= res.status && res.status < 500) { return false; }
 		} catch (err: any) {
 			// Network/other error - retry
 			console.log(`[worker] attempt ${attempt} error`, err?.name || '', err?.message || '');

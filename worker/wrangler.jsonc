@@ -12,7 +12,10 @@
 	},
 	"vars": {
 		"BACKEND_URL": "https://activitysync-api.onrender.com"
-	}
+	},
+	// Allow Worker→Worker fetches within the same zone.
+	// Needed for baton-passing to /__continue without hitting Cloudflare error 1042.
+	"compatibility_flags": ["global_fetch_strictly_public"]
 	/**
 	 * Smart Placement
 	 * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
