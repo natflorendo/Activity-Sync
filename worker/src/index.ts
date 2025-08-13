@@ -37,7 +37,7 @@ export default {
       // Keep running until this task finishes, even if the response has already been sent.
 	  // Free plan has a 30s time limit
       ctx.waitUntil((async () => {
-        const done = await forward_event(env.BACKEND_URL, body_text, 28_000); // fit < 30s cap
+        const done = await forward_event(env.BACKEND_URL, body_text, 24_000); // fit < 30s cap
 		console.log("done", done)
         if (!done) {
 		  console.log("in done")

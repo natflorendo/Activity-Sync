@@ -122,6 +122,8 @@ async def sync_strava_data(strava_user: StravaUser, db: Session):
         db.refresh(strava_user)
     except Exception as e:
         db.rollback()
+        if e.response.status_code in (400, 401):
+            raise HTTPException(status_code=401, detail="google_unauthorized: token refresh failed")
         raise HTTPException(status_code=500, detail=f"Failed to sync Strava data: {str(e)}")
 
 async def update_strava_activity(strava_user: StravaUser, activity_id: int):
@@ -144,6 +146,8 @@ async def update_strava_activity(strava_user: StravaUser, activity_id: int):
 
         await save_activities(strava_user, [activity])
     except Exception as e:
+        if e.response.status_code in (400, 401):
+            raise HTTPException(status_code=401, detail="google_unauthorized: token refresh failed")
         raise HTTPException(status_code=500, detail=f"Failed to update Strava activity {activity_id}: {str(e)}")
     
 async def delete_strava_activity(strava_user: StravaUser, activity_id: int, db: Session):
@@ -189,4 +193,6 @@ async def delete_strava_activity(strava_user: StravaUser, activity_id: int, db: 
         print(f"‼️ Event deleted: {existing_event_id}, {activity_id}")
     except Exception as e:
         db.rollback()
+        if e.response.status_code in (400, 401):
+            raise HTTPException(status_code=401, detail="google_unauthorized: token refresh failed")
         raise HTTPException(status_code=500, detail=f"Unexpected error while deleting activity {activity_id}: {str(e)}")
