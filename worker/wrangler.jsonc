@@ -4,11 +4,14 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "worker",
+	"name": "activitysync-proxy",
 	"main": "src/index.ts",
 	"compatibility_date": "2025-08-12",
 	"observability": {
 		"enabled": true
+	},
+	"vars": {
+		"BACKEND_URL": "https://activitysync-api.onrender.com"
 	}
 	/**
 	 * Smart Placement
