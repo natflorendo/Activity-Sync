@@ -24,7 +24,7 @@ def venv_check(dir: Path):
     venv = dir / ".venv"
     if not venv.exists():
         print(f"Creating venv at {venv}")
-        subprocess.run(["python", "-m", "venv", str(venv)], check=True)
+        subprocess.run(["python3", "-m", "venv", str(venv)], check=True)
     py, pip = venv_paths(venv)
     # Make sure pip is installed (should be there by default)
     if not pip.exists():
