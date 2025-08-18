@@ -49,7 +49,59 @@ Before running the repository locally, ensure you have the following installed:
 ---
 
 ## How To Run Locally
-Coming Soon
+### 3. Option A: One-command Setup (Recommended)
+Use this to install all dependencies (frontend, backend, and root-level) with a single command:
+```bash
+npm run setup
+```
+This will:
+* Install backend dependencies (*server*)
+* Install frontend dependencies (*client*)
+* Install *root-level* dependencies
+
+Once setup is complete, you can run the app concurrently:
+```bash
+npm run dev
+```
+
+**⚠️ Avoid using slashes (/) in parent folder names.**
+If you clone or move this project into a folder with a name like `CS 440/442`, your shell will interpret that as a nested folder structure, which can break scripts that rely on npx, ts-node, or prisma.
+
+### 4. Option B: Run Backend and Frontend Concurrently (Manual Setup - One Terminal)
+```bash
+# Step 1: Install dependencies in backend
+cd server
+python3 -m venv .venv
+source .venv/bin/activate      # (Windows: .venv\Scripts\Activate.ps1)
+pip install -r requirements.txt
+
+# Step 2: Install dependencies in frontend
+cd ../client
+npm install
+
+# Step 3: Install root-level dependencies and run both
+cd ..
+npm install
+npm run dev
+```
+
+
+### 5. Option C: Run Backend and Frontend Separately (Requires Two Terminals)
+#### In Terminal 1 – Setup Backend:
+```bash
+cd server
+python3 -m venv .venv
+source .venv/bin/activate     # (Windows: .venv\Scripts\Activate.ps1)
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+```
+
+#### In Terminal 2 – Setup Frontend
+```bash
+cd client
+npm install
+npm run dev
+```
 
 ---
 
