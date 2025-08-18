@@ -1,5 +1,6 @@
 {
   "scripts": {
+    "setup": "python3 setup.py",
     "dev": "concurrently \"npm run dev --prefix client\" \"cd server && source .venv/bin/activate && uvicorn main:app --reload\""
   },
   "devDependencies": {

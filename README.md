@@ -83,7 +83,7 @@ Here is a list of some features and enchancements I'd like to expand upon in the
 * **Advanced Analytics Dashboard** - Provides users with more in depth insights, such as trends in workout timing, consistency, and weekly/monthly summaries.
 * **Account Management Enhancements** - Expand to have user settings that include account deletion and more self-service managemnt options
 * **Updated Testing** - Add frontend and backend tests via vitest and pytest. (Initial tests existed but were not maintained during development)
-* User Customization options - Allow users to configure how synced event appear in Google Calendar:
+* **User Customization Options** - Allow users to configure how synced event appear in Google Calendar:
     * Customize event title and description format.
     * Choose between miles or kilometers.
     * Configure calendar timezone (currently hardcoded to Chicago).
