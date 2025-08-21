@@ -129,18 +129,17 @@ https://github.com/user-attachments/assets/79fa5bc0-28e6-4e97-9a15-5f6ca97a0ee0
 ### Google Calendar Event
 <img width="753" height="372" alt="Google Event" src="https://github.com/user-attachments/assets/fef1d5a5-5ad4-4b1b-8bbb-59bdd0c27cc2" />
 
-
-
 ---
 
 ## Desired Future Improvements
 Here is a list of some features and enchancements I'd like to expand upon in the future:
+* **Google OAuth Production Readiness** - Move app fully to production and resolve cookie-setting failures when the Google Cloud OAuth app is set to “In production.” (set-cookie contained session instead of refresh token in google/callback)
 * **Sleep Data Integration** - Add support for pulling sleep metrics alongside workouts for a more complete calendar view. (Couldn't find any official free options; Unofficial option - [python-garminconnect](https://github.com/cyberjunky/python-garminconnect))
 * **Improved UI** - Display a clear message when the backend is asleep, so users know that they may appear logged out temporarily
 * **Email Notifications** - Automatically notify users via email if their account becomes disconnected from Strava or Google
 * **Advanced Analytics Dashboard** - Provides users with more in depth insights, such as trends in workout timing, consistency, and weekly/monthly summaries.
 * **Account Management Enhancements** - Expand to have user settings that include account deletion and more self-service managemnt options
-* **Updated Testing** - Add frontend and backend tests via vitest and pytest. (Initial tests existed but were not maintained during development)
+* **Updated Testing** - Add frontend and backend tests via vitest and pytest. (Initial backend tests existed but were not maintained during development)
 * **User Customization Options** - Allow users to configure how synced event appear in Google Calendar:
     * Customize event title and description format.
     * Choose between miles or kilometers.
