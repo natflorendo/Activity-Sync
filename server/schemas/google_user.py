@@ -15,7 +15,7 @@ class GoogleUserCreate(BaseModel):
     access_token: str
     access_token_expiry: datetime
     refresh_token: str
-    refresh_token_expiry: datetime
+    refresh_token_expiry: datetime | None = None
 
 class GoogleUserOut(BaseModel):
     id: UUID
@@ -24,6 +24,6 @@ class GoogleUserOut(BaseModel):
     access_token: str
     access_token_expiry: datetime
     refresh_token: str
-    refresh_token_expiry: datetime
+    refresh_token_expiry: datetime | None
 
     model_config = ConfigDict(from_attributes=True)

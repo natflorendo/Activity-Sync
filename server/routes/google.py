@@ -83,7 +83,12 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
             raise HTTPException(status_code=400, detail="Failed to retrieve access token")
         
         user_info = token["userinfo"]
-        refresh_token_expires_at = datetime.now(timezone.utc) + timedelta(seconds=token["refresh_token_expires_in"])
+        # Handle optional field safely (missing in Production)
+        rtei = token.get("refresh_token_expires_in")
+        refresh_token_expires_at = (
+            datetime.now(timezone.utc) + timedelta(seconds=rtei)
+            if isinstance(rtei, (int, float)) else None
+        )
 
         user_data = UserCreate(
             name=user_info["name"],
@@ -115,5 +120,6 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
             "token": token, 
             "user": user
             }
-    except Exception:
+    except Exception as e:
+        print(str(e))
         return RedirectResponse(url=os.getenv("FRONTEND_URL"))
