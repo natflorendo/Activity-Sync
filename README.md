@@ -133,7 +133,7 @@ https://github.com/user-attachments/assets/79fa5bc0-28e6-4e97-9a15-5f6ca97a0ee0
 
 ## Desired Future Improvements
 Here is a list of some features and enchancements I'd like to expand upon in the future:
-* **Google OAuth Production Readiness** - Move app fully to production and resolve cookie-setting failures when the Google Cloud OAuth app is set to “In production.” (set-cookie contained session instead of refresh token in google/callback)
+* ~~**Google OAuth Production Readiness** - Move app fully to production and resolve cookie-setting failures when the Google Cloud OAuth app is set to “In production.” (set-cookie contained session instead of refresh token in google/callback)~~ (Completed 8/21/25)
 * **Sleep Data Integration** - Add support for pulling sleep metrics alongside workouts for a more complete calendar view. (Couldn't find any official free options; Unofficial option - [python-garminconnect](https://github.com/cyberjunky/python-garminconnect))
 * **Improved UI** - Display a clear message when the backend is asleep, so users know that they may appear logged out temporarily
 * **Email Notifications** - Automatically notify users via email if their account becomes disconnected from Strava or Google
