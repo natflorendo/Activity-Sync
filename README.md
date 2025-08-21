@@ -123,7 +123,6 @@ Coming Soon
 ### Google Sign In Flow
 ### Strava Sign In Flow
 ### Google Calendar Event
-### Strava Activity
 
 ---
 

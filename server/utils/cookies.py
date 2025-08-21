@@ -11,6 +11,7 @@ import os
 IS_DEV = os.getenv("NODE_ENV").lower() == "development"
 COOKIE_SAMESITE = "lax" if IS_DEV else "none"
 COOKIE_SECURE = False if IS_DEV else True
+COOKIE_DOMAIN = os.getenv("BACKEND_DOMAIN")
 
 def set_auth_cookies(response: Response, access_token: str, refresh_token: str):
     """
@@ -26,13 +27,14 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str):
     """
     # HTTP-only refresh token cookie for session persistence.
     response.set_cookie(
-            key="refresh_token",
-            value=refresh_token,
-            httponly=True,
-            secure=COOKIE_SECURE,  # Only over HTTPS (False in dev [http])
-            samesite=COOKIE_SAMESITE,  # Allows redirect-based auth
-            max_age=60 * 60 * 24 * 30, # 30 days
-            path="/"
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=COOKIE_SECURE,  # Only over HTTPS (False in dev [http])
+        samesite=COOKIE_SAMESITE,  # Allows redirect-based auth
+        max_age=60 * 60 * 24 * 30, # 30 days
+        path="/",
+        domain=COOKIE_DOMAIN
     )
 
     # JS-readable access token cookie for short-term API access
@@ -43,7 +45,8 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str):
         secure=COOKIE_SECURE, # Set False for development (http)
         samesite=COOKIE_SAMESITE,
         max_age=60 * 5,  # 5 minutes
-        path="/"
+        path="/",
+        domain=COOKIE_DOMAIN
     )
 
 def delete_auth_cookies(response: Response):
@@ -59,10 +62,18 @@ def delete_auth_cookies(response: Response):
     # Just in case to prevent stale cookies from being reused or lingering in the browser.
     response.delete_cookie(
         key="access_token",
-        path="/"
+        httponly=False, 
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+        path="/",
+        domain=COOKIE_DOMAIN
     )
     
     response.delete_cookie(
         key="refresh_token",
-        path="/"
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+        path="/",
+        domain=COOKIE_DOMAIN
     )

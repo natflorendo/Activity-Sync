@@ -31,6 +31,8 @@ services:
         value: https://activitysync-client.onrender.com
       - key: BACKEND_URL
         value: https://activitysync-api.onrender.com
+      - key: BACKEND_DOMAIN
+        value: activitysync-api.onrender.com
       - key: SESSION_SECRET
         generateValue: true
       - key: JWT_SECRET
