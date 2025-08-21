@@ -121,8 +121,15 @@ npm run dev
 ## Visuals
 Coming Soon
 ### Google Sign In Flow
+https://github.com/user-attachments/assets/67a49399-118f-480a-9b22-d702b0ef818f
+
 ### Strava Sign In Flow
+https://github.com/user-attachments/assets/79fa5bc0-28e6-4e97-9a15-5f6ca97a0ee0
+
 ### Google Calendar Event
+<img width="753" height="372" alt="Google Event" src="https://github.com/user-attachments/assets/fef1d5a5-5ad4-4b1b-8bbb-59bdd0c27cc2" />
+
+
 
 ---
 
