@@ -185,7 +185,7 @@ def logout_strava(
             )
             res.raise_for_status()
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error while revoking Strava token: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"Error while revoking Strava token: {str(e)}")
 
         strava_data.is_connected = False
 

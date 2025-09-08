@@ -84,7 +84,7 @@ def refresh_google_token(user: User, db: Session):
         db.refresh(google_data)
     except httpx.HTTPError as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"HTTP error while refreshing google token: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"HTTP error while refreshing google token: {str(e)}")
     
 def refresh_strava_token(user: User, db: Session):
     """
