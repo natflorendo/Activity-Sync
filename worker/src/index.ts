@@ -19,6 +19,8 @@ export default {
       const hub_challenge = parsed_url.searchParams.get("hub.challenge");
       const verify_token = parsed_url.searchParams.get("hub.verify_token");
 
+	  // Handles Strava’s initial verification challenge
+	  // After this, Strava switches to sending normal POST event payloads
       if (hub_mode == "subscribe" && hub_challenge && verify_token == env.STRAVA_VERIFY_TOKEN) {
 		return Response.json({ "hub.challenge": hub_challenge });
       }
@@ -30,7 +32,7 @@ export default {
     }
 
     // POST: events - return 200 immediately, forward once server is ready
-	// do ~28s of work then pass down if needed
+	// do ~24s of work then pass down if needed
     if (request.method === "POST" && is_webhook) {
       const body_text = await request.text();
 
@@ -70,7 +72,8 @@ export default {
 		}
 
 		const depth = Number(request.headers.get("x-depth") ?? "0");
-		if (depth > 2) return Response.json({ status: "stop" }); // safety max ~3 windows total
+		console.log(`[worker] /__continue depth=${depth}`);
+		if (depth > 5) return Response.json({ status: "stop" }); // safety max ~6 windows total
 
 		const body_text = await request.text();
 

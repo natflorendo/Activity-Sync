@@ -34,6 +34,8 @@ async def verify_webhook(request: Request):
     hub_challenge = request.query_params.get("hub.challenge")
     verify_token = request.query_params.get("hub.verify_token")
 
+    # Handles Strava’s initial verification challenge
+	# After this, Strava switches to sending normal POST event payloads
     if hub_mode == "subscribe" and hub_challenge and verify_token == os.getenv("STRAVA_VERIFY_TOKEN"):
         return {"hub.challenge": hub_challenge}
     

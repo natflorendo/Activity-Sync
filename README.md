@@ -145,6 +145,8 @@ Here is a list of some features and enchancements I'd like to expand upon in the
     * Choose between miles or kilometers.
     * Configure calendar timezone (currently hardcoded to Chicago).
     * *Note*: the direct link to the Strava activity will remain required for all events.
+* **Server Connection Status & Manual Wake Feature** – Add a frontend section showing whether the backend is asleep, disconnected, or connected, with a “Start Server” button that triggers the backend wake-up and displays a spinning loader until the server becomes active.
+* **Security Improvements** – Strengthen authentication by encrypting stored access and refresh tokens for Google and Strava, reducing the risk of token theft or database compromise.
 
 ---
 

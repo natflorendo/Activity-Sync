@@ -108,7 +108,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
         access_token = jwt_utils.create_access_token(user.id)
         refresh_token = jwt_utils.create_refresh_token(user.id)
 
-        # Redirect Response only works if you did window.location.href
+        # Redirect Response only works if you did window.location.href on frontend
         response = RedirectResponse(url=os.getenv("FRONTEND_URL"))
         set_auth_cookies(response, access_token, refresh_token)
 

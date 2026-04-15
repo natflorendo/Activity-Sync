@@ -175,7 +175,6 @@ def logout_strava(
 
     user = get_current_user(db, token)
     strava_data = db.query(StravaUser).filter_by(user_id=user.id).first()
-    print(user)
     
     if strava_data:
         try:

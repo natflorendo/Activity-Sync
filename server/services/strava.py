@@ -10,11 +10,71 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from schemas.calendar import CalendarEventCreate
 from models.strava_user import StravaUser
-from utils.time import format_duration
 import integrations.google_calendar_api as calendar_utils
 from integrations.strava_api import get_strava_activities, get_strava_activity
 from datetime import datetime, timedelta, timezone
 import httpx
+
+
+def format_activity_time(seconds: int) -> str:
+    """Format seconds as M:SS or H:MM:SS."""
+    hours, remainder = divmod(seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    if hours:
+        return f"{hours}:{minutes:02d}:{seconds:02d}"
+    return f"{minutes}:{seconds:02d}"
+
+
+def format_pace(seconds: int, distance_miles: float) -> str:
+    """Format pace as min/mi, or blank when pace is not meaningful."""
+    if distance_miles <= 0:
+        return ""
+    return format_activity_time(round(seconds / distance_miles))
+
+
+def format_heart_rate(value) -> str:
+    if value is None:
+        return ""
+    return f"{float(value):.0f}"
+
+
+def is_weight_training(activity: dict) -> bool:
+    return activity.get("sport_type") == "WeightTraining"
+
+
+def is_run(activity: dict) -> bool:
+    return activity.get("sport_type") == "Run"
+
+
+def build_activity_summary(activity: dict, distance_miles: float) -> str:
+    if is_weight_training(activity):
+        return activity["name"]
+    return f"({distance_miles} mi) {activity['name']}"
+
+
+def build_activity_description(activity: dict, distance_miles: float) -> str:
+    if not is_run(activity):
+        return f"View on Strava: https://www.strava.com/activities/{activity['id']}"
+
+    elapsed_time = activity["elapsed_time"]
+    return (
+        "What I did: \n"
+        f"{activity['name']}\n"
+        f"Time: {format_activity_time(elapsed_time)}\n"
+        f"Distance (mi): {distance_miles}\n"
+        f"Pace (min/mi): {format_pace(elapsed_time, distance_miles)}\n"
+        f"Avg HR: {format_heart_rate(activity.get('average_heartrate'))}\n"
+        f"Maximum HR: {format_heart_rate(activity.get('max_heartrate'))}\n"
+        "Time in HR Zones (min):\n"
+        "    - Zone 1: \n"
+        "    - Zone 2: \n"
+        "    - Zone 3: \n"
+        "    - Zone 4: \n"
+        "    - Zone 5: \n"
+        "Training effect: - Aerobic; - Anaerobic\n\n"
+        f"View on Strava: https://www.strava.com/activities/{activity['id']}"
+    )
+
 
 async def save_activities(strava_user: StravaUser, activities: list[dict]):
     """
@@ -47,17 +107,12 @@ async def save_activities(strava_user: StravaUser, activities: list[dict]):
             # Convert ISO 8601 timestamp into a timezone-aware Python datetime object
             start_time = datetime.fromisoformat(activity["start_date"].replace("Z", "+00:00"))
             end_time=start_time + timedelta(seconds=activity["elapsed_time"])
-            duration = format_duration(activity["elapsed_time"])
             if latest_end_utc is None or end_time.astimezone(timezone.utc) > latest_end_utc:
                 latest_end_utc = end_time.astimezone(timezone.utc)
             
             event = CalendarEventCreate(
-                summary=f"({distance} mi) {activity['name']}",
-                description=(
-                    f"{distance} miles\n"
-                    f"Duration: {duration}\n\n"
-                    f"View on Strava: https://www.strava.com/activities/{activity['id']}"    
-                ),
+                summary=build_activity_summary(activity, distance),
+                description=build_activity_description(activity, distance),
                 start_time=start_time,
                 end_time=end_time,
                 time_zone=activity["timezone"]
